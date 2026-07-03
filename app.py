@@ -1,7 +1,16 @@
 from flask import Flask, request, redirect, send_file
 import sqlite3
 from fpdf import FPDF 
+from flask_mail import Mail, Message
 app = Flask(__name__)
+app.config['MAIL_SERVER'] = 'precisionconcreteinc.net'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_USE_TLS'] = False
+app.config['MAIL_USERNAME'] = 'estimates@precisionconcreteinc.net'
+app.config['MAIL_PASSWORD'] = 'Gunnerhorse15'
+mail = Mail(app)
+
 def init_db():
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
@@ -14,7 +23,8 @@ def init_db():
             sqft INTEGER,
             demo TEXT,
             total REAL,
-            deposit REAL
+            deposit REAL,
+                        client_email TEXT
         )
     """)
     conn.commit()
@@ -42,6 +52,8 @@ def home():
         <form method="POST" action="/quote">
             <label>Client Name:</label>
             <input type="text" name="client_name">
+            <label>Client Email:</label>
+            <input type="email" name="client_email">
             <label>Address:</label>
             <input type="text" name="address">
             <label>Square Footage:</label>
@@ -67,6 +79,7 @@ def home():
 @app.route("/quote", methods=["POST"])
 def quote():
     client_name = request.form["client_name"]
+    client_email = request.form["client_email"]
     address = request.form["address"]
     sqft = int(request.form["sqft"])
     job_type = request.form["job_type"]
@@ -87,10 +100,41 @@ def quote():
 
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
-    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (client_name, address, job_type, sqft, demo, total, deposit))
+    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (client_name, address, job_type, sqft, demo, total, deposit, client_email))
     conn.commit()
-    conn.close()    
+    conn.close()
+    path = f"quote_{client_name}.pdf"
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 20)
+    pdf.cell(0, 15, "Precision Concrete Inc.", ln=True)
+    pdf.set_font("Arial", size=12)
+    pdf.cell(0, 10, f"Client: {client_name}", ln=True)
+    pdf.cell(0, 10, f"Address: {address}", ln=True)
+    pdf.cell(0, 10, f"Job Type: {job_type}", ln=True)
+    pdf.cell(0, 10, f"Square Footage: {sqft}", ln=True)
+    pdf.cell(0, 10, f"Demo: {demo}", ln=True)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
+    pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
+    pdf.output(path)
+                  
+    msg = Message(
+
+        subject="Your Quote from Precision Concrete Inc.",
+        sender="estimates@precisionconcreteinc.net",
+        recipients=[client_email]
+
+    )
+    msg.body = f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\n\Thank you,\nPrecision Concrete Inc."
+    with open(path, "rb") as f:
+        msg.attach(f"quote_{client_name}.pdf", "application/pdf", f.read())
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print(f"Email error: {e}")       
+        
 
     return f"""
     <html>
