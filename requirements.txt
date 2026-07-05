@@ -2,3 +2,5 @@ flask
 fpdf2
 gunicorn
 flask-mail
+flask-login
+Werkzeug
