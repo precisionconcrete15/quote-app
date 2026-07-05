@@ -1,15 +1,42 @@
 from flask import Flask, request, redirect, send_file
 import sqlite3
-from fpdf import FPDF 
+from fpdf import FPDF
 from flask_mail import Mail, Message
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+
 app = Flask(__name__)
-app.config['MAIL_SERVER'] = 'precisionconcreteinc.net'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USERNAME'] = 'estimates@precisionconcreteinc.net'
-app.config['MAIL_PASSWORD'] = 'Gunnerhorse15'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 mail = Mail(app)
+app.secret_key = 'precision2024secret'
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+
+class User(UserMixin):
+    def __init__(self, id, email):
+        self.id = id
+        self.email = email
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = sqlite3.connect("quotes.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    conn.close()
+    if user:
+        return User(user[0], user[1])
+    return None
+
 
 def init_db():
     conn = sqlite3.connect("quotes.db")
@@ -24,31 +51,169 @@ def init_db():
             demo TEXT,
             total REAL,
             deposit REAL,
-                        client_email TEXT
+            client_email TEXT,
+              user_id INTEGER
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            id INTEGER PRIMARY KEY,
+              email TEXT UNIQUE,
+              password TEXT,
+              company_name TEXT,
+              price_driveway REAL,
+              price_patio REAL,
+              price_foundation REAL,
+              demo_upcharge REAL
         )
     """)
     conn.commit()
     conn.close()
 
-init_db()            
+
+init_db()
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = generate_password_hash(request.form["password"])
+        conn = sqlite3.connect("quotes.db")
+        c = conn.cursor()
+        company_name = request.form["company_name"]
+        c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (email, password, company_name, 25, 22, 28, 7))
+        conn.commit()
+        conn.close()
+        return redirect("/login")
+    return """
+     <html>
+    <body style="font-family:Arial;max-width:400px;margin:50px auto">
+    <h2 style="color:#E8A317">Create Account</h2>
+    <form method="POST" action="/register">
+    <p>Company Name:</p>
+    <input type="text" name="company_name"><br><br>
+        <p>Email:</p>
+        <input type="text" name="email"><br><br>
+        <p>Password:</p>
+        <input type="password" name="password"><br><br>
+        <input type="submit" value="Register">
+    </form>
+    <a href="/login">Already have an account? Login</a>
+    </body>
+    </html>
+    """
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+        conn = sqlite3.connect("quotes.db")
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE email = ?", (email,))
+        user = c.fetchone()
+        conn.close()
+        if user and check_password_hash(user[2], password):
+            login_user(User(user[0], user[1]))
+            return redirect("/")
+        return "Invalid email or password"
+    return """
+        <html><body style="font-family:Arial;max-width:400px;margin:50px auto">
+        <h2 style="color:#E8A317">Login</h2>
+        <form method="POST" action="/login">
+            <label>Email:</label><br>
+            <input type="text" name="email" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <button type="submit" style="background:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:16px;cursor:pointer">Login</button>
+            </form>
+            <a href="/register">Don't have an account? Register</a>
+            </body></html>
+    """
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect("/login")
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    conn = sqlite3.connect("quotes.db")
+    c = conn.cursor()
+
+    if request.method == "POST":
+        company_name = request.form["company_name"]
+        price_driveway = float(request.form["price_driveway"])
+        price_patio = float(request.form["price_patio"])
+        price_foundation = float(request.form["price_foundation"])
+        demo_upcharge = float(request.form["demo_upcharge"])
+
+        c.execute("""
+                  UPDATE users
+                  SET company_name = ?, price_driveway = ?, price_patio = ?, price_foundation = ?, demo_upcharge =?
+                  WHERE id = ?
+        """, (company_name, price_driveway, price_patio, price_foundation, demo_upcharge, current_user.id))
+        conn.commit()
+        conn.close()
+        return redirect("/")
+
+    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = ?", (current_user.id,))
+    user_data = c.fetchone()
+    conn.close()
+
+    company_name, price_driveway, price_patio, price_foundation,  demo_upcharge = user_data
+
+    return f"""
+     <html>
+     <body style="font-family:Arial;max-width:400px;margin:50px auto">
+        <h2 style="color:#E8A317">Settings</h2>
+        <form method="POST" action="/settings">
+            <label>Company_Name:</label><br>
+            <input type="text" name="company_name" value="{company_name}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <label>Driveway price per sqft ($):</label><br>
+            <input type="number" step="0.01"name="price_driveway" value="{price_driveway}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <label>Patio price per sqft ($):</label><br>
+            <input type="number" step="0.01" name="price_patio" value="{price_patio}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <label>Foundation price per sqft ($):</label><br>
+            <input type="number" step="0.01" name="price_foundation" value="{price_foundation}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <label>Demo upcharge per sqft ($):</label><br>
+            <input type="number" syep="0.01" name="demo_upcharge" value="{demo_upcharge}" style="witdh:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <button type="submit" style="backround:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:10px;cursor:pointer">save</button>
+        </form>
+        <a href="/" style="display:block;text-align:center;margin-top:15px; color:#0E0E0E;">Back to Home</a>
+    </body>
+    </html>
+    """        
 
 
 @app.route("/")
+@login_required
 def home():
-    return """
+    conn = sqlite3.connect("quotes.db")
+    c = conn.cursor()
+    c.execute("SELECT company_name FROM users WHERE id = ?", (current_user.id,))
+    company_name = c.fetchone()[0]
+    conn.close()
+
+    return f"""
     <html>
     <head>
-        <title>Precision Concrete</title>
+        <title>{company_name}</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; background-color: #f5f5f5; }
-            h1 { color: #E8A317; border-bottom: 3px solid #E8A317; padding-bottom: 10px; }
-            input, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
-            button { background-color: #E8A317; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; width: 100%; margin-top: 10px; }
-            label { font-weight: bold; color: #333; }
+            body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; background-color: #f5f5f5; }}
+            h1 {{ color: #E8A317; border-bottom: 3px solid #E8A317; padding-bottom: 10px; }}
+            input, select {{ width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }}
+            button {{ background-color: #E8A317; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; width: 100%; margin-top: 10px; }}
+            label {{ font-weight: bold; color: #333; }}
         </style>
     </head>
     <body>
-        <h1>Precision Concrete Quote Generator</h1>
+        <h1>{company_name} Quote Generator</h1>
         <form method="POST" action="/quote">
             <label>Client Name:</label>
             <input type="text" name="client_name">
@@ -71,12 +236,15 @@ def home():
             </select>
             <button type="submit">Generate Quote</button>
             <a href="/quotes" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">View All Quotes</a>
+            <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
         </form>
     </body>
     </html>
     """
 
+
 @app.route("/quote", methods=["POST"])
+@login_required
 def quote():
     client_name = request.form["client_name"]
     client_email = request.form["client_email"]
@@ -85,23 +253,31 @@ def quote():
     job_type = request.form["job_type"]
     demo = request.form["demo"]
 
+    conn = sqlite3.connect("quotes.db")
+    c = conn.cursor()
+    c.execute("SELECT price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = ?", (current_user.id,))
+    prices = c.fetchone()
+    conn.close()
+
+    price_driveway, price_patio, price_foundation, demo_upcharge = prices
+
     if job_type == "driveway":
-        price_per_sqft = 25
+        price_per_sqft = price_driveway
     elif job_type == "patio":
-        price_per_sqft = 22
+        price_per_sqft = price_patio
     else:
-        price_per_sqft = 28
+        price_per_sqft = price_foundation
 
     if demo == "yes":
-        price_per_sqft += 7
+        price_per_sqft += demo_upcharge
 
     total = price_per_sqft * sqft
     deposit = min(1000, total * 0.10)
 
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
-    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (client_name, address, job_type, sqft, demo, total, deposit, client_email))
+    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id))
     conn.commit()
     conn.close()
     path = f"quote_{client_name}.pdf"
@@ -119,22 +295,19 @@ def quote():
     pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
     pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
     pdf.output(path)
-                  
+
     msg = Message(
-
         subject="Your Quote from Precision Concrete Inc.",
-        sender="estimates@precisionconcreteinc.net",
+        sender="duranmd1988@gmail.com",
         recipients=[client_email]
-
     )
-    msg.body = f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\n\Thank you,\nPrecision Concrete Inc."
+    msg.body = f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\nPrecision Concrete Inc."
     with open(path, "rb") as f:
         msg.attach(f"quote_{client_name}.pdf", "application/pdf", f.read())
     try:
         mail.send(msg)
     except Exception as e:
-        print(f"Email error: {e}")       
-        
+        print(f"Email error: {e}")
 
     return f"""
     <html>
@@ -164,11 +337,13 @@ def quote():
     </body>
     </html>
     """
+
 @app.route("/quotes")
+@login_required
 def view_quotes():
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM quotes")
+    c.execute("SELECT * FROM quotes WHERE user_id = ?", (current_user.id,))
     all_quotes = c.fetchall()
     conn.close()
 
@@ -184,9 +359,7 @@ def view_quotes():
             <td>{q[5]}</td>
             <td>${q[6]:,.2f}</td>
             <td>${q[7]:,.2f}</td>
-            <td><a href="/pdf/{q[0]}",>PDF</a> | <a href="/delete/{q[0]}">Delete</a></td>
-
-           
+            <td><a href="/pdf/{q[0]}">PDF</a> | <a href="/delete/{q[0]}">Delete</a></td>
         </tr>
         """
 
@@ -212,18 +385,25 @@ def view_quotes():
             {rows}
         </table>
         <a href="/">Back to Home</a>
+        <a href="/logout" style="display:block;text-aligncenter; margin-top:10px; color:#B33A3A;">Logout</a>
     </body>
     </html>
     """
+
+
 @app.route("/delete/<int:id>")
+@login_required
 def delete_quote(id):
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
-    c.execute("Delete FROM quotes WHERE id = ?", (id,))
+    c.execute("DELETE FROM quotes WHERE id = ?", (id,))
     conn.commit()
     conn.close()
     return redirect("/quotes")
+
+
 @app.route("/pdf/<int:id>")
+@login_required
 def generate_pdf(id):
     conn = sqlite3.connect("quotes.db")
     c = conn.cursor()
@@ -233,7 +413,7 @@ def generate_pdf(id):
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B",20)
+    pdf.set_font("Arial", "B", 20)
     pdf.cell(0, 15, "Precision Concrete Inc.", ln=True)
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, f"Client: {q[1]}", ln=True)
@@ -242,13 +422,13 @@ def generate_pdf(id):
     pdf.cell(0, 10, f"Square Footage: {q[4]}", ln=True)
     pdf.cell(0, 10, f"Demo: {q[5]}", ln=True)
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"Total: ${q[6]}:,.2f)", ln=True)
-    pdf.cell (90, 10, f"Deposit Due: ${q[7]:,.2f}", ln=True)
+    pdf.cell(0, 10, f"Total: ${q[6]:,.2f}", ln=True)
+    pdf.cell(0, 10, f"Deposit Due: ${q[7]:,.2f}", ln=True)
 
     path = f"quote_{id}.pdf"
     pdf.output(path)
     return send_file(path, as_attachment=True)
 
-    
+
 if __name__ == "__main__":
     app.run(debug=True)
