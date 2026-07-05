@@ -28,7 +28,7 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
@@ -39,7 +39,7 @@ def load_user(user_id):
 
 
 def init_db():
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS quotes (
@@ -79,7 +79,7 @@ def register():
     if request.method == "POST":
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
-        conn = sqlite3.connect("quotes.db")
+        conn = sqlite3.connect("quotes_v2.db")
         c = conn.cursor()
         company_name = request.form["company_name"]
         c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -111,7 +111,7 @@ def login():
     if request.method == "POST":
         email = request.form["email"]
         password = request.form["password"]
-        conn = sqlite3.connect("quotes.db")
+        conn = sqlite3.connect("quotes_2v.db")
         c = conn.cursor()
         c.execute("SELECT * FROM users WHERE email = ?", (email,))
         user = c.fetchone()
@@ -143,7 +143,7 @@ def logout():
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
 
     if request.method == "POST":
@@ -194,7 +194,7 @@ def settings():
 @app.route("/")
 @login_required
 def home():
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("SELECT company_name FROM users WHERE id = ?", (current_user.id,))
     company_name = c.fetchone()[0]
@@ -253,7 +253,7 @@ def quote():
     job_type = request.form["job_type"]
     demo = request.form["demo"]
 
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("SELECT price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = ?", (current_user.id,))
     prices = c.fetchone()
@@ -274,7 +274,7 @@ def quote():
     total = price_per_sqft * sqft
     deposit = min(1000, total * 0.10)
 
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
               (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id))
@@ -341,7 +341,7 @@ def quote():
 @app.route("/quotes")
 @login_required
 def view_quotes():
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("SELECT * FROM quotes WHERE user_id = ?", (current_user.id,))
     all_quotes = c.fetchall()
@@ -394,7 +394,7 @@ def view_quotes():
 @app.route("/delete/<int:id>")
 @login_required
 def delete_quote(id):
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("DELETE FROM quotes WHERE id = ?", (id,))
     conn.commit()
@@ -405,7 +405,7 @@ def delete_quote(id):
 @app.route("/pdf/<int:id>")
 @login_required
 def generate_pdf(id):
-    conn = sqlite3.connect("quotes.db")
+    conn = sqlite3.connect("quotes_v2.db")
     c = conn.cursor()
     c.execute("SELECT * FROM quotes WHERE id = ?", (id,))
     q = c.fetchone()
