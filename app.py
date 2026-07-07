@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, send_file
-import sqlite3
+import psycopg2
 from fpdf import FPDF
 from flask_mail import Mail, Message
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -20,6 +20,10 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 
+def get_db():
+    return psycopg2.connect(os.environ.get('DATABASE_URL'))
+
+
 class User(UserMixin):
     def __init__(self, id, email):
         self.id = id
@@ -28,9 +32,9 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    c.execute("SELECT * FROM users WHERE id = %s", (user_id,))
     user = c.fetchone()
     conn.close()
     if user:
@@ -39,11 +43,11 @@ def load_user(user_id):
 
 
 def init_db():
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS quotes (
-            id INTEGER PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             client_name TEXT,
             address TEXT,
             job_type TEXT,
@@ -52,19 +56,19 @@ def init_db():
             total REAL,
             deposit REAL,
             client_email TEXT,
-              user_id INTEGER
+            user_id INTEGER
         )
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS users(
-            id INTEGER PRIMARY KEY,
-              email TEXT UNIQUE,
-              password TEXT,
-              company_name TEXT,
-              price_driveway REAL,
-              price_patio REAL,
-              price_foundation REAL,
-              demo_upcharge REAL
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE,
+            password TEXT,
+            company_name TEXT,
+            price_driveway REAL,
+            price_patio REAL,
+            price_foundation REAL,
+            demo_upcharge REAL
         )
     """)
     conn.commit()
@@ -79,11 +83,11 @@ def register():
     if request.method == "POST":
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
-        conn = sqlite3.connect("quotes_v2.db")
-        c = conn.cursor()
         company_name = request.form["company_name"]
-        c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (email, password, company_name, 25, 22, 28, 7))
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                  (email, password, company_name, 25, 22, 28, 7))
         conn.commit()
         conn.close()
         return redirect("/login")
@@ -92,8 +96,8 @@ def register():
     <body style="font-family:Arial;max-width:400px;margin:50px auto">
     <h2 style="color:#E8A317">Create Account</h2>
     <form method="POST" action="/register">
-    <p>Company Name:</p>
-    <input type="text" name="company_name"><br><br>
+        <p>Company Name:</p>
+        <input type="text" name="company_name"><br><br>
         <p>Email:</p>
         <input type="text" name="email"><br><br>
         <p>Password:</p>
@@ -111,9 +115,9 @@ def login():
     if request.method == "POST":
         email = request.form["email"]
         password = request.form["password"]
-        conn = sqlite3.connect("quotes_2v.db")
+        conn = get_db()
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE email = ?", (email,))
+        c.execute("SELECT * FROM users WHERE email = %s", (email,))
         user = c.fetchone()
         conn.close()
         if user and check_password_hash(user[2], password):
@@ -134,16 +138,18 @@ def login():
             </body></html>
     """
 
+
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect("/login")
 
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
 
     if request.method == "POST":
@@ -154,49 +160,49 @@ def settings():
         demo_upcharge = float(request.form["demo_upcharge"])
 
         c.execute("""
-                  UPDATE users
-                  SET company_name = ?, price_driveway = ?, price_patio = ?, price_foundation = ?, demo_upcharge =?
-                  WHERE id = ?
+            UPDATE users
+            SET company_name = %s, price_driveway = %s, price_patio = %s, price_foundation = %s, demo_upcharge = %s
+            WHERE id = %s
         """, (company_name, price_driveway, price_patio, price_foundation, demo_upcharge, current_user.id))
         conn.commit()
         conn.close()
         return redirect("/")
 
-    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = ?", (current_user.id,))
+    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
     user_data = c.fetchone()
     conn.close()
 
-    company_name, price_driveway, price_patio, price_foundation,  demo_upcharge = user_data
+    company_name, price_driveway, price_patio, price_foundation, demo_upcharge = user_data
 
     return f"""
-     <html>
-     <body style="font-family:Arial;max-width:400px;margin:50px auto">
+    <html>
+    <body style="font-family:Arial;max-width:400px;margin:50px auto">
         <h2 style="color:#E8A317">Settings</h2>
         <form method="POST" action="/settings">
-            <label>Company_Name:</label><br>
+            <label>Company Name:</label><br>
             <input type="text" name="company_name" value="{company_name}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
             <label>Driveway price per sqft ($):</label><br>
-            <input type="number" step="0.01"name="price_driveway" value="{price_driveway}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <input type="number" step="0.01" name="price_driveway" value="{price_driveway}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
             <label>Patio price per sqft ($):</label><br>
             <input type="number" step="0.01" name="price_patio" value="{price_patio}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
             <label>Foundation price per sqft ($):</label><br>
             <input type="number" step="0.01" name="price_foundation" value="{price_foundation}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
             <label>Demo upcharge per sqft ($):</label><br>
-            <input type="number" syep="0.01" name="demo_upcharge" value="{demo_upcharge}" style="witdh:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <button type="submit" style="backround:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:10px;cursor:pointer">save</button>
+            <input type="number" step="0.01" name="demo_upcharge" value="{demo_upcharge}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
+            <button type="submit" style="background:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:16px;cursor:pointer">Save</button>
         </form>
-        <a href="/" style="display:block;text-align:center;margin-top:15px; color:#0E0E0E;">Back to Home</a>
+        <a href="/" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">Back to Home</a>
     </body>
     </html>
-    """        
+    """
 
 
 @app.route("/")
 @login_required
 def home():
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT company_name FROM users WHERE id = ?", (current_user.id,))
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
     company_name = c.fetchone()[0]
     conn.close()
 
@@ -236,6 +242,7 @@ def home():
             </select>
             <button type="submit">Generate Quote</button>
             <a href="/quotes" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">View All Quotes</a>
+            <a href="/settings" style="display:block;text-align:center; margin-top:10px; color:#0E0E0E;">Settings</a>
             <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
         </form>
     </body>
@@ -253,9 +260,9 @@ def quote():
     job_type = request.form["job_type"]
     demo = request.form["demo"]
 
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = ?", (current_user.id,))
+    c.execute("SELECT price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
     prices = c.fetchone()
     conn.close()
 
@@ -274,9 +281,9 @@ def quote():
     total = price_per_sqft * sqft
     deposit = min(1000, total * 0.10)
 
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
               (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id))
     conn.commit()
     conn.close()
@@ -338,12 +345,13 @@ def quote():
     </html>
     """
 
+
 @app.route("/quotes")
 @login_required
 def view_quotes():
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM quotes WHERE user_id = ?", (current_user.id,))
+    c.execute("SELECT * FROM quotes WHERE user_id = %s", (current_user.id,))
     all_quotes = c.fetchall()
     conn.close()
 
@@ -385,7 +393,7 @@ def view_quotes():
             {rows}
         </table>
         <a href="/">Back to Home</a>
-        <a href="/logout" style="display:block;text-aligncenter; margin-top:10px; color:#B33A3A;">Logout</a>
+        <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
     </body>
     </html>
     """
@@ -394,9 +402,9 @@ def view_quotes():
 @app.route("/delete/<int:id>")
 @login_required
 def delete_quote(id):
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM quotes WHERE id = ?", (id,))
+    c.execute("DELETE FROM quotes WHERE id = %s AND user_id = %s", (id, current_user.id))
     conn.commit()
     conn.close()
     return redirect("/quotes")
@@ -405,11 +413,14 @@ def delete_quote(id):
 @app.route("/pdf/<int:id>")
 @login_required
 def generate_pdf(id):
-    conn = sqlite3.connect("quotes_v2.db")
+    conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM quotes WHERE id = ?", (id,))
+    c.execute("SELECT * FROM quotes WHERE id = %s AND user_id = %s", (id, current_user.id))
     q = c.fetchone()
     conn.close()
+
+    if q is None:
+        return "Quote not found", 404
 
     pdf = FPDF()
     pdf.add_page()

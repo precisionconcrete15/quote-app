@@ -4,3 +4,4 @@ gunicorn
 flask-mail
 flask-login
 Werkzeug
+psycopg2-binary
