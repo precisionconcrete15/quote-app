@@ -1,19 +1,13 @@
 from flask import Flask, request, redirect, send_file
 import psycopg2
 from fpdf import FPDF
-from flask_mail import Mail, Message
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import base64
+import requests
 
 app = Flask(__name__)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-mail = Mail(app)
 app.secret_key = 'precision2024secret'
 
 login_manager = LoginManager(app)
@@ -303,16 +297,22 @@ def quote():
     pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
     pdf.output(path)
 
-    msg = Message(
-        subject="Your Quote from Precision Concrete Inc.",
-        sender="duranmd1988@gmail.com",
-        recipients=[client_email]
-    )
-    msg.body = f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\nPrecision Concrete Inc."
     with open(path, "rb") as f:
-        msg.attach(f"quote_{client_name}.pdf", "application/pdf", f.read())
+        pdf_base64 = base64.b64encode(f.read()).decode("utf-8")
+
     try:
-        mail.send(msg)
+        requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}"},
+            json={
+                "from": "onboarding@resend.dev",
+                "to": [client_email],
+                "subject": "Your Quote from Precision Concrete Inc.",
+                "text": f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\nPrecision Concrete Inc.",
+                "attachments": [{"filename": f"quote_{client_name}.pdf", "content": pdf_base64}]
+            },
+            timeout=15
+        )
     except Exception as e:
         print(f"Email error: {e}")
 
