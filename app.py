@@ -300,6 +300,7 @@ def webhook():
         customer_id = session_obj.get("customer")
         subscription_id = session_obj.get("subscription")
         if user_id:
+            user_id = int(user_id)
             c.execute(
                 "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = 'active' WHERE id = %s",
                 (customer_id, subscription_id, user_id)
