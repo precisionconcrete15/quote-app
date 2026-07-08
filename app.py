@@ -305,7 +305,7 @@ def quote():
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}"},
             json={
-                "from": "onboarding@resend.dev",
+                "from": "quotes@qotixo.com",
                 "to": [client_email],
                 "subject": "Your Quote from Precision Concrete Inc.",
                 "text": f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\nPrecision Concrete Inc.",
