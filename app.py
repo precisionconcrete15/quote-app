@@ -306,11 +306,13 @@ def webhook():
         user_id = stripe_field(session_obj, "client_reference_id")
         customer_id = stripe_field(session_obj, "customer")
         subscription_id = stripe_field(session_obj, "subscription")
-        if user_id:
+        if user_id and subscription_id:
             user_id = int(user_id)
+            current_sub = stripe.Subscription.retrieve(subscription_id)
+            current_status = stripe_field(current_sub, "status")
             c.execute(
-                "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = 'active' WHERE id = %s",
-                (customer_id, subscription_id, user_id)
+                "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = %s WHERE id = %s",
+                (customer_id, subscription_id, current_status, user_id)
             )
             conn.commit()
 
