@@ -45,6 +45,13 @@ def send_email(to_email, subject, text, pdf_base64=None, pdf_filename=None):
         print(f"Email error: {e}")
 
 
+def stripe_field(obj, key):
+    try:
+        return obj[key]
+    except (KeyError, AttributeError):
+        return None
+
+
 class User(UserMixin):
     def __init__(self, id, email):
         self.id = id
@@ -296,9 +303,9 @@ def webhook():
 
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
-        user_id = session_obj.get("client_reference_id")
-        customer_id = session_obj.get("customer")
-        subscription_id = session_obj.get("subscription")
+        user_id = stripe_field(session_obj, "client_reference_id")
+        customer_id = stripe_field(session_obj, "customer")
+        subscription_id = stripe_field(session_obj, "subscription")
         if user_id:
             user_id = int(user_id)
             c.execute(
@@ -309,8 +316,8 @@ def webhook():
 
     elif event["type"] == "customer.subscription.updated":
         sub = event["data"]["object"]
-        customer_id = sub.get("customer")
-        status = sub.get("status")
+        customer_id = stripe_field(sub, "customer")
+        status = stripe_field(sub, "status")
         c.execute(
             "UPDATE users SET subscription_status = %s WHERE stripe_customer_id = %s",
             (status, customer_id)
@@ -319,7 +326,7 @@ def webhook():
 
     elif event["type"] == "customer.subscription.deleted":
         sub = event["data"]["object"]
-        customer_id = sub.get("customer")
+        customer_id = stripe_field(sub, "customer")
         c.execute(
             "UPDATE users SET subscription_status = 'canceled' WHERE stripe_customer_id = %s",
             (customer_id,)
