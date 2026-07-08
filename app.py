@@ -4,7 +4,7 @@ from fpdf import FPDF
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import os
 import base64
 import requests
@@ -76,7 +76,7 @@ def subscription_required(f):
             return redirect("/billing")
 
         status, trial_end = row
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         if status == "active":
             return f(*args, **kwargs)
@@ -134,7 +134,7 @@ def register():
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
         company_name = request.form["company_name"]
-        trial_end = datetime.now(timezone.utc) + timedelta(days=14)
+        trial_end = datetime.utcnow() + timedelta(days=14)
         conn = get_db()
         c = conn.cursor()
         try:
@@ -239,7 +239,7 @@ def billing():
     status, trial_end = c.fetchone()
     conn.close()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     if status == "active":
         message = "Your subscription is active. Thank you!"
         show_button = False
