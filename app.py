@@ -18,6 +18,26 @@ def get_db():
     return psycopg2.connect(os.environ.get('DATABASE_URL'))
 
 
+def send_email(to_email, subject, text, pdf_base64=None, pdf_filename=None):
+    payload = {
+        "from": "quotes@qotixo.com",
+        "to": [to_email],
+        "subject": subject,
+        "text": text,
+    }
+    if pdf_base64 and pdf_filename:
+        payload["attachments"] = [{"filename": pdf_filename, "content": pdf_base64}]
+    try:
+        requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}"},
+            json=payload,
+            timeout=15
+        )
+    except Exception as e:
+        print(f"Email error: {e}")
+
+
 class User(UserMixin):
     def __init__(self, id, email):
         self.id = id
@@ -84,6 +104,13 @@ def register():
             c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                       (email, password, company_name, 25, 22, 28, 7))
             conn.commit()
+
+            send_email(
+                "estimates@precisionconcreteinc.net",
+                "New Qotixo signup",
+                f"New user registered:\n\nCompany: {company_name}\nEmail: {email}"
+            )
+
         except psycopg2.errors.UniqueViolation:
             conn.rollback()
             conn.close()
@@ -324,21 +351,19 @@ def quote():
     with open(path, "rb") as f:
         pdf_base64 = base64.b64encode(f.read()).decode("utf-8")
 
-    try:
-        requests.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {os.environ.get('RESEND_API_KEY')}"},
-            json={
-                "from": "quotes@qotixo.com",
-                "to": [client_email],
-                "subject": f"Your Quote from {company_name}",
-                "text": f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\n{company_name}",
-                "attachments": [{"filename": f"quote_{client_name}.pdf", "content": pdf_base64}]
-            },
-            timeout=15
-        )
-    except Exception as e:
-        print(f"Email error: {e}")
+    send_email(
+        client_email,
+        f"Your Quote from {company_name}",
+        f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\n{company_name}",
+        pdf_base64,
+        f"quote_{client_name}.pdf"
+    )
+
+    send_email(
+        current_user.email,
+        f"New lead: {client_name}",
+        f"You just generated a new quote.\n\nClient: {client_name}\nEmail: {client_email}\nAddress: {address}\nJob Type: {job_type}\nSquare Footage: {sqft}\nDemo: {demo}\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}"
+    )
 
     return f"""
     <html>
