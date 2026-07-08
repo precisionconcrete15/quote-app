@@ -80,9 +80,33 @@ def register():
         company_name = request.form["company_name"]
         conn = get_db()
         c = conn.cursor()
-        c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                  (email, password, company_name, 25, 22, 28, 7))
-        conn.commit()
+        try:
+            c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                      (email, password, company_name, 25, 22, 28, 7))
+            conn.commit()
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            conn.close()
+            return """
+             <html>
+            <body style="font-family:Arial;max-width:400px;margin:50px auto">
+            <h2 style="color:#E8A317">Create Account</h2>
+            <p style="color:#B33A3A;background:#fdecea;padding:10px;border-radius:5px">
+                That email is already registered. Please <a href="/login">log in</a> instead.
+            </p>
+            <form method="POST" action="/register">
+                <p>Company Name:</p>
+                <input type="text" name="company_name"><br><br>
+                <p>Email:</p>
+                <input type="text" name="email"><br><br>
+                <p>Password:</p>
+                <input type="password" name="password"><br><br>
+                <input type="submit" value="Register">
+            </form>
+            <a href="/login">Already have an account? Login</a>
+            </body>
+            </html>
+            """
         conn.close()
         return redirect("/login")
     return """
