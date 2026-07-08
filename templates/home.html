@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ company_name }} Quote Generator{% endblock %}
+{% block content %}
+<h1>{{ company_name }}</h1>
+<form method="POST" action="/quote">
+    <label>Client Name</label>
+    <input type="text" name="client_name" required>
+    <label>Client Email</label>
+    <input type="email" name="client_email" required>
+    <label>Address</label>
+    <input type="text" name="address" required>
+    <label>Square Footage</label>
+    <input type="number" name="sqft" required>
+    <label>Job Type</label>
+    <select name="job_type">
+        <option value="driveway">Driveway</option>
+        <option value="patio">Patio</option>
+        <option value="foundation">Foundation</option>
+    </select>
+    <label>Demo needed?</label>
+    <select name="demo">
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+    </select>
+    <button type="submit">Generate Quote</button>
+</form>
+<div class="link-row">
+    <a href="/quotes">View All Quotes</a>
+    <a href="/settings">Settings</a>
+    <a href="/billing">Billing</a>
+    <a href="/logout" class="link-danger">Logout</a>
+</div>
+{% endblock %}
