@@ -280,11 +280,11 @@ def quote():
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
-    prices = c.fetchone()
+    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
+    user_row = c.fetchone()
     conn.close()
 
-    price_driveway, price_patio, price_foundation, demo_upcharge = prices
+    company_name, price_driveway, price_patio, price_foundation, demo_upcharge = user_row
 
     if job_type == "driveway":
         price_per_sqft = price_driveway
@@ -309,7 +309,7 @@ def quote():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 20)
-    pdf.cell(0, 15, "Precision Concrete Inc.", ln=True)
+    pdf.cell(0, 15, company_name, ln=True)
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, f"Client: {client_name}", ln=True)
     pdf.cell(0, 10, f"Address: {address}", ln=True)
@@ -331,8 +331,8 @@ def quote():
             json={
                 "from": "quotes@qotixo.com",
                 "to": [client_email],
-                "subject": "Your Quote from Precision Concrete Inc.",
-                "text": f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\nPrecision Concrete Inc.",
+                "subject": f"Your Quote from {company_name}",
+                "text": f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\n{company_name}",
                 "attachments": [{"filename": f"quote_{client_name}.pdf", "content": pdf_base64}]
             },
             timeout=15
@@ -441,6 +441,8 @@ def generate_pdf(id):
     c = conn.cursor()
     c.execute("SELECT * FROM quotes WHERE id = %s AND user_id = %s", (id, current_user.id))
     q = c.fetchone()
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
+    company_name = c.fetchone()[0]
     conn.close()
 
     if q is None:
@@ -449,7 +451,7 @@ def generate_pdf(id):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 20)
-    pdf.cell(0, 15, "Precision Concrete Inc.", ln=True)
+    pdf.cell(0, 15, company_name, ln=True)
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, f"Client: {q[1]}", ln=True)
     pdf.cell(0, 10, f"Address: {q[2]}", ln=True)
