@@ -8,7 +8,7 @@
     <tr>
         <td>{{ q[1] }}</td>
         <td>{{ q[3] }}</td>
-        <td>${{ "%.2f"|format(q[6]) }}</td>
+        <td>${{ "{:,.2f}".format(q[6]) }}</td>
         <td><a href="/pdf/{{ q[0] }}">PDF</a> · <a href="/delete/{{ q[0] }}" class="link-danger">Del</a></td>
     </tr>
     {% endfor %}

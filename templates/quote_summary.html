@@ -8,8 +8,8 @@
     <p><strong>Job Type:</strong> {{ job_type }}</p>
     <p><strong>Square Footage:</strong> {{ sqft }}</p>
     <p><strong>Demo:</strong> {{ demo }}</p>
-    <p style="font-size:22px;font-weight:700;color:var(--amber)">Total: ${{ "%.2f"|format(total) }}</p>
-    <p><strong>Deposit Due:</strong> ${{ "%.2f"|format(deposit) }}</p>
+    <p style="font-size:22px;font-weight:700;color:var(--amber)">Total: ${{ "{:,.2f}".format(total) }}</p>
+    <p><strong>Deposit Due:</strong> ${{ "{:,.2f}".format(deposit) }}</p>
 </div>
 <a href="/" class="btn btn-dark">Generate Another Quote</a>
 {% endblock %}
