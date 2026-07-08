@@ -3,15 +3,22 @@ import psycopg2
 from fpdf import FPDF
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+from datetime import datetime, timedelta, timezone
 import os
 import base64
 import requests
+import stripe
 
 app = Flask(__name__)
 app.secret_key = 'precision2024secret'
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_PRICE_ID = "price_1Tqmr2QKfprCRWsdLfLubmdF"
+APP_URL = "https://quote-app-flfp.onrender.com"
 
 
 def get_db():
@@ -56,6 +63,31 @@ def load_user(user_id):
     return None
 
 
+def subscription_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT subscription_status, trial_end FROM users WHERE id = %s", (current_user.id,))
+        row = c.fetchone()
+        conn.close()
+
+        if row is None:
+            return redirect("/billing")
+
+        status, trial_end = row
+        now = datetime.now(timezone.utc)
+
+        if status == "active":
+            return f(*args, **kwargs)
+
+        if status == "trialing" and trial_end and trial_end > now:
+            return f(*args, **kwargs)
+
+        return redirect("/billing")
+    return decorated_function
+
+
 def init_db():
     conn = get_db()
     c = conn.cursor()
@@ -85,6 +117,10 @@ def init_db():
             demo_upcharge REAL
         )
     """)
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trialing'")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end TIMESTAMP")
     conn.commit()
     conn.close()
 
@@ -98,11 +134,14 @@ def register():
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
         company_name = request.form["company_name"]
+        trial_end = datetime.now(timezone.utc) + timedelta(days=14)
         conn = get_db()
         c = conn.cursor()
         try:
-            c.execute("INSERT INTO users (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                      (email, password, company_name, 25, 22, 28, 7))
+            c.execute("""INSERT INTO users
+                (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge, subscription_status, trial_end)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                      (email, password, company_name, 25, 22, 28, 7, "trialing", trial_end))
             conn.commit()
 
             send_email(
@@ -191,8 +230,108 @@ def logout():
     return redirect("/login")
 
 
+@app.route("/billing")
+@login_required
+def billing():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT subscription_status, trial_end FROM users WHERE id = %s", (current_user.id,))
+    status, trial_end = c.fetchone()
+    conn.close()
+
+    now = datetime.now(timezone.utc)
+    if status == "active":
+        message = "Your subscription is active. Thank you!"
+        show_button = False
+    elif status == "trialing" and trial_end and trial_end > now:
+        days_left = (trial_end - now).days
+        message = f"You're on a free trial. {days_left} day(s) left."
+        show_button = True
+    else:
+        message = "Your trial has ended or your subscription is inactive. Subscribe to keep using Qotixo."
+        show_button = True
+
+    button_html = '<a href="/subscribe" style="display:block;text-align:center;background:#E8A317;color:white;padding:12px;border-radius:5px;text-decoration:none;margin-top:15px;">Subscribe Now</a>' if show_button else ''
+
+    return f"""
+    <html>
+    <body style="font-family:Arial;max-width:400px;margin:50px auto">
+        <h2 style="color:#E8A317">Billing</h2>
+        <p>{message}</p>
+        {button_html}
+        <a href="/" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">Back to Home</a>
+        <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
+    </body>
+    </html>
+    """
+
+
+@app.route("/subscribe")
+@login_required
+def subscribe():
+    checkout_session = stripe.checkout.Session.create(
+        mode="subscription",
+        line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+        success_url=f"{APP_URL}/billing",
+        cancel_url=f"{APP_URL}/billing",
+        client_reference_id=str(current_user.id),
+        customer_email=current_user.email,
+    )
+    return redirect(checkout_session.url, code=303)
+
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        return "Invalid signature", 400
+
+    conn = get_db()
+    c = conn.cursor()
+
+    if event["type"] == "checkout.session.completed":
+        session_obj = event["data"]["object"]
+        user_id = session_obj.get("client_reference_id")
+        customer_id = session_obj.get("customer")
+        subscription_id = session_obj.get("subscription")
+        if user_id:
+            c.execute(
+                "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = 'active' WHERE id = %s",
+                (customer_id, subscription_id, user_id)
+            )
+            conn.commit()
+
+    elif event["type"] == "customer.subscription.updated":
+        sub = event["data"]["object"]
+        customer_id = sub.get("customer")
+        status = sub.get("status")
+        c.execute(
+            "UPDATE users SET subscription_status = %s WHERE stripe_customer_id = %s",
+            (status, customer_id)
+        )
+        conn.commit()
+
+    elif event["type"] == "customer.subscription.deleted":
+        sub = event["data"]["object"]
+        customer_id = sub.get("customer")
+        c.execute(
+            "UPDATE users SET subscription_status = 'canceled' WHERE stripe_customer_id = %s",
+            (customer_id,)
+        )
+        conn.commit()
+
+    conn.close()
+    return "", 200
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
+@subscription_required
 def settings():
     conn = get_db()
     c = conn.cursor()
@@ -244,6 +383,7 @@ def settings():
 
 @app.route("/")
 @login_required
+@subscription_required
 def home():
     conn = get_db()
     c = conn.cursor()
@@ -288,6 +428,7 @@ def home():
             <button type="submit">Generate Quote</button>
             <a href="/quotes" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">View All Quotes</a>
             <a href="/settings" style="display:block;text-align:center; margin-top:10px; color:#0E0E0E;">Settings</a>
+            <a href="/billing" style="display:block;text-align:center; margin-top:10px; color:#0E0E0E;">Billing</a>
             <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
         </form>
     </body>
@@ -297,6 +438,7 @@ def home():
 
 @app.route("/quote", methods=["POST"])
 @login_required
+@subscription_required
 def quote():
     client_name = request.form["client_name"]
     client_email = request.form["client_email"]
@@ -397,6 +539,7 @@ def quote():
 
 @app.route("/quotes")
 @login_required
+@subscription_required
 def view_quotes():
     conn = get_db()
     c = conn.cursor()
@@ -450,6 +593,7 @@ def view_quotes():
 
 @app.route("/delete/<int:id>")
 @login_required
+@subscription_required
 def delete_quote(id):
     conn = get_db()
     c = conn.cursor()
@@ -461,6 +605,7 @@ def delete_quote(id):
 
 @app.route("/pdf/<int:id>")
 @login_required
+@subscription_required
 def generate_pdf(id):
     conn = get_db()
     c = conn.cursor()
