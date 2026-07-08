@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<h1>Billing</h1>
+<p>{{ message }}</p>
+{% if show_button %}
+<a href="/subscribe" class="btn">Subscribe Now</a>
+{% endif %}
+<div class="link-row">
+    <a href="/">Back to Home</a>
+    <a href="/logout" class="link-danger">Logout</a>
+</div>
+{% endblock %}

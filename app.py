@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, send_file
+from flask import Flask, request, redirect, send_file, render_template
 import psycopg2
 from fpdf import FPDF
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -11,7 +11,7 @@ import requests
 import stripe
 
 app = Flask(__name__)
-app.secret_key = 'precision2024secret'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-only-change-in-render')
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -23,6 +23,13 @@ APP_URL = "https://quote-app-flfp.onrender.com"
 
 def get_db():
     return psycopg2.connect(os.environ.get('DATABASE_URL'))
+
+
+def stripe_field(obj, key):
+    try:
+        return obj[key]
+    except (KeyError, AttributeError):
+        return None
 
 
 def send_email(to_email, subject, text, pdf_base64=None, pdf_filename=None):
@@ -43,13 +50,6 @@ def send_email(to_email, subject, text, pdf_base64=None, pdf_filename=None):
         )
     except Exception as e:
         print(f"Email error: {e}")
-
-
-def stripe_field(obj, key):
-    try:
-        return obj[key]
-    except (KeyError, AttributeError):
-        return None
 
 
 class User(UserMixin):
@@ -160,45 +160,13 @@ def register():
         except psycopg2.errors.UniqueViolation:
             conn.rollback()
             conn.close()
-            return """
-             <html>
-            <body style="font-family:Arial;max-width:400px;margin:50px auto">
-            <h2 style="color:#E8A317">Create Account</h2>
-            <p style="color:#B33A3A;background:#fdecea;padding:10px;border-radius:5px">
-                That email is already registered. Please <a href="/login">log in</a> instead.
-            </p>
-            <form method="POST" action="/register">
-                <p>Company Name:</p>
-                <input type="text" name="company_name"><br><br>
-                <p>Email:</p>
-                <input type="text" name="email"><br><br>
-                <p>Password:</p>
-                <input type="password" name="password"><br><br>
-                <input type="submit" value="Register">
-            </form>
-            <a href="/login">Already have an account? Login</a>
-            </body>
-            </html>
-            """
+            return render_template(
+                "register.html",
+                error='That email is already registered. Please <a href="/login">log in</a> instead.'
+            )
         conn.close()
         return redirect("/login")
-    return """
-     <html>
-    <body style="font-family:Arial;max-width:400px;margin:50px auto">
-    <h2 style="color:#E8A317">Create Account</h2>
-    <form method="POST" action="/register">
-        <p>Company Name:</p>
-        <input type="text" name="company_name"><br><br>
-        <p>Email:</p>
-        <input type="text" name="email"><br><br>
-        <p>Password:</p>
-        <input type="password" name="password"><br><br>
-        <input type="submit" value="Register">
-    </form>
-    <a href="/login">Already have an account? Login</a>
-    </body>
-    </html>
-    """
+    return render_template("register.html", error=None)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -214,20 +182,8 @@ def login():
         if user and check_password_hash(user[2], password):
             login_user(User(user[0], user[1]))
             return redirect("/")
-        return "Invalid email or password"
-    return """
-        <html><body style="font-family:Arial;max-width:400px;margin:50px auto">
-        <h2 style="color:#E8A317">Login</h2>
-        <form method="POST" action="/login">
-            <label>Email:</label><br>
-            <input type="text" name="email" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <label>Password:</label><br>
-            <input type="password" name="password" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <button type="submit" style="background:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:16px;cursor:pointer">Login</button>
-            </form>
-            <a href="/register">Don't have an account? Register</a>
-            </body></html>
-    """
+        return render_template("login.html", error="Invalid email or password")
+    return render_template("login.html", error=None)
 
 
 @app.route("/logout")
@@ -258,19 +214,7 @@ def billing():
         message = "Your trial has ended or your subscription is inactive. Subscribe to keep using Qotixo."
         show_button = True
 
-    button_html = '<a href="/subscribe" style="display:block;text-align:center;background:#E8A317;color:white;padding:12px;border-radius:5px;text-decoration:none;margin-top:15px;">Subscribe Now</a>' if show_button else ''
-
-    return f"""
-    <html>
-    <body style="font-family:Arial;max-width:400px;margin:50px auto">
-        <h2 style="color:#E8A317">Billing</h2>
-        <p>{message}</p>
-        {button_html}
-        <a href="/" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">Back to Home</a>
-        <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
-    </body>
-    </html>
-    """
+    return render_template("billing.html", message=message, show_button=show_button)
 
 
 @app.route("/subscribe")
@@ -368,27 +312,14 @@ def settings():
 
     company_name, price_driveway, price_patio, price_foundation, demo_upcharge = user_data
 
-    return f"""
-    <html>
-    <body style="font-family:Arial;max-width:400px;margin:50px auto">
-        <h2 style="color:#E8A317">Settings</h2>
-        <form method="POST" action="/settings">
-            <label>Company Name:</label><br>
-            <input type="text" name="company_name" value="{company_name}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <label>Driveway price per sqft ($):</label><br>
-            <input type="number" step="0.01" name="price_driveway" value="{price_driveway}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <label>Patio price per sqft ($):</label><br>
-            <input type="number" step="0.01" name="price_patio" value="{price_patio}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <label>Foundation price per sqft ($):</label><br>
-            <input type="number" step="0.01" name="price_foundation" value="{price_foundation}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <label>Demo upcharge per sqft ($):</label><br>
-            <input type="number" step="0.01" name="demo_upcharge" value="{demo_upcharge}" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ccc"><br>
-            <button type="submit" style="background:#E8A317;color:white;padding:10px;border:none;width:100%;margin-top:10px;font-size:16px;cursor:pointer">Save</button>
-        </form>
-        <a href="/" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">Back to Home</a>
-    </body>
-    </html>
-    """
+    return render_template(
+        "settings.html",
+        company_name=company_name,
+        price_driveway=price_driveway,
+        price_patio=price_patio,
+        price_foundation=price_foundation,
+        demo_upcharge=demo_upcharge
+    )
 
 
 @app.route("/")
@@ -400,50 +331,7 @@ def home():
     c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
     company_name = c.fetchone()[0]
     conn.close()
-
-    return f"""
-    <html>
-    <head>
-        <title>{company_name}</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; background-color: #f5f5f5; }}
-            h1 {{ color: #E8A317; border-bottom: 3px solid #E8A317; padding-bottom: 10px; }}
-            input, select {{ width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }}
-            button {{ background-color: #E8A317; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; width: 100%; margin-top: 10px; }}
-            label {{ font-weight: bold; color: #333; }}
-        </style>
-    </head>
-    <body>
-        <h1>{company_name} Quote Generator</h1>
-        <form method="POST" action="/quote">
-            <label>Client Name:</label>
-            <input type="text" name="client_name">
-            <label>Client Email:</label>
-            <input type="email" name="client_email">
-            <label>Address:</label>
-            <input type="text" name="address">
-            <label>Square Footage:</label>
-            <input type="number" name="sqft">
-            <label>Job Type:</label>
-            <select name="job_type">
-                <option value="driveway">Driveway</option>
-                <option value="patio">Patio</option>
-                <option value="foundation">Foundation</option>
-            </select>
-            <label>Demo needed?</label>
-            <select name="demo">
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-            </select>
-            <button type="submit">Generate Quote</button>
-            <a href="/quotes" style="display:block;text-align:center; margin-top:15px; color:#0E0E0E;">View All Quotes</a>
-            <a href="/settings" style="display:block;text-align:center; margin-top:10px; color:#0E0E0E;">Settings</a>
-            <a href="/billing" style="display:block;text-align:center; margin-top:10px; color:#0E0E0E;">Billing</a>
-            <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
-        </form>
-    </body>
-    </html>
-    """
+    return render_template("home.html", company_name=company_name)
 
 
 @app.route("/quote", methods=["POST"])
@@ -517,34 +405,16 @@ def quote():
         f"You just generated a new quote.\n\nClient: {client_name}\nEmail: {client_email}\nAddress: {address}\nJob Type: {job_type}\nSquare Footage: {sqft}\nDemo: {demo}\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}"
     )
 
-    return f"""
-    <html>
-    <head>
-        <title>Quote Summary</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; background-color: #f5f5f5; }}
-            h1 {{ color: #E8A317; border-bottom: 3px solid #E8A317; padding-bottom: 10px; }}
-            .quote-box {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-            p {{ font-size: 18px; margin: 10px 0; }}
-            .total {{ font-size: 24px; font-weight: bold; color: #E8A317; }}
-            a {{ display: block; text-align: center; margin-top: 20px; background-color: #0E0E0E; color: white; padding: 12px; border-radius: 5px; text-decoration: none; }}
-        </style>
-    </head>
-    <body>
-        <h1>Quote Summary</h1>
-        <div class="quote-box">
-            <p>Client: {client_name}</p>
-            <p>Address: {address}</p>
-            <p>Job Type: {job_type}</p>
-            <p>Square Footage: {sqft}</p>
-            <p>Demo: {demo}</p>
-            <p class="total">Total: ${total}</p>
-            <p>Deposit Due: ${deposit}</p>
-        </div>
-        <a href="/">Generate Another Quote</a>
-    </body>
-    </html>
-    """
+    return render_template(
+        "quote_summary.html",
+        client_name=client_name,
+        address=address,
+        job_type=job_type,
+        sqft=sqft,
+        demo=demo,
+        total=total,
+        deposit=deposit
+    )
 
 
 @app.route("/quotes")
@@ -556,49 +426,7 @@ def view_quotes():
     c.execute("SELECT * FROM quotes WHERE user_id = %s", (current_user.id,))
     all_quotes = c.fetchall()
     conn.close()
-
-    rows = ""
-    for q in all_quotes:
-        rows += f"""
-        <tr>
-            <td>{q[0]}</td>
-            <td>{q[1]}</td>
-            <td>{q[2]}</td>
-            <td>{q[3]}</td>
-            <td>{q[4]}</td>
-            <td>{q[5]}</td>
-            <td>${q[6]:,.2f}</td>
-            <td>${q[7]:,.2f}</td>
-            <td><a href="/pdf/{q[0]}">PDF</a> | <a href="/delete/{q[0]}">Delete</a></td>
-        </tr>
-        """
-
-    return f"""
-    <html>
-    <head>
-        <title>All Quotes</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 50px auto; background-color: #f5f5f5; }}
-            h1 {{ color: #E8A317; }}
-            table {{ width: 100%; border-collapse: collapse; background: white; }}
-            th, td {{ padding: 10px; border: 1px solid #ddd; text-align: left; }}
-            th {{ background-color: #0E0E0E; color: white; }}
-            a {{ display: inline-block; margin-top: 20px; color: #E8A317; }}
-        </style>
-    </head>
-    <body>
-        <h1>All Quotes</h1>
-        <table>
-            <tr>
-                <th>ID</th><th>Client</th><th>Address</th><th>Job Type</th><th>Sqft</th><th>Demo</th><th>Total</th><th>Deposit</th>
-            </tr>
-            {rows}
-        </table>
-        <a href="/">Back to Home</a>
-        <a href="/logout" style="display:block;text-align:center; margin-top:10px; color:#B33A3A;">Logout</a>
-    </body>
-    </html>
-    """
+    return render_template("quotes.html", quotes=all_quotes)
 
 
 @app.route("/delete/<int:id>")

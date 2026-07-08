@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}All Quotes{% endblock %}
+{% block content %}
+<h1>All Quotes</h1>
+<table>
+    <tr><th>Client</th><th>Job</th><th>Total</th><th></th></tr>
+    {% for q in quotes %}
+    <tr>
+        <td>{{ q[1] }}</td>
+        <td>{{ q[3] }}</td>
+        <td>${{ "%.2f"|format(q[6]) }}</td>
+        <td><a href="/pdf/{{ q[0] }}">PDF</a> · <a href="/delete/{{ q[0] }}" class="link-danger">Del</a></td>
+    </tr>
+    {% endfor %}
+</table>
+<div class="link-row">
+    <a href="/">Back to Home</a>
+    <a href="/logout" class="link-danger">Logout</a>
+</div>
+{% endblock %}
