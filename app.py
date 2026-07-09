@@ -656,6 +656,35 @@ def pay_deposit(token):
     return redirect(checkout_session.url, code=303)
 
 
+@app.route("/remind/<int:id>")
+@login_required
+@subscription_required
+def remind_quote(id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT q.client_name, q.client_email, q.token, q.signed_at, u.company_name
+        FROM quotes q JOIN users u ON q.user_id = u.id
+        WHERE q.id = %s AND q.user_id = %s
+    """, (id, current_user.id))
+    row = c.fetchone()
+    conn.close()
+
+    if row is None:
+        return redirect("/quotes")
+
+    client_name, client_email, token, signed_at, company_name = row
+
+    if not signed_at and token:
+        send_email(
+            client_email,
+            f"Reminder: Your Quote from {company_name}",
+            f"Hi {client_name},\n\nJust a reminder that your quote from {company_name} is still waiting for you.\n\nView and accept it here:\n{APP_URL}/view/{token}\n\nThank you,\n{company_name}"
+        )
+
+    return redirect("/quotes")
+
+
 @app.route("/delete/<int:id>")
 @login_required
 @subscription_required
