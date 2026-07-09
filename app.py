@@ -133,6 +133,8 @@ def init_db():
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signature_name TEXT")
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP")
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN DEFAULT FALSE")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_id TEXT")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_onboarded BOOLEAN DEFAULT FALSE")
     conn.commit()
     conn.close()
 
@@ -309,6 +311,51 @@ def webhook():
     return "", 200
 
 
+@app.route("/connect-stripe")
+@login_required
+def connect_stripe():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT stripe_connect_id FROM users WHERE id = %s", (current_user.id,))
+    connect_id = c.fetchone()[0]
+
+    if not connect_id:
+        account = stripe.Account.create(
+            type="express",
+            email=current_user.email,
+            capabilities={"transfers": {"requested": True}},
+        )
+        connect_id = account.id
+        c.execute("UPDATE users SET stripe_connect_id = %s WHERE id = %s", (connect_id, current_user.id))
+        conn.commit()
+    conn.close()
+
+    account_link = stripe.AccountLink.create(
+        account=connect_id,
+        refresh_url=f"{APP_URL}/connect-stripe",
+        return_url=f"{APP_URL}/connect-stripe/return",
+        type="account_onboarding",
+    )
+    return redirect(account_link.url, code=303)
+
+
+@app.route("/connect-stripe/return")
+@login_required
+def connect_stripe_return():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT stripe_connect_id FROM users WHERE id = %s", (current_user.id,))
+    connect_id = c.fetchone()[0]
+
+    if connect_id:
+        account = stripe.Account.retrieve(connect_id)
+        onboarded = bool(stripe_field(account, "charges_enabled"))
+        c.execute("UPDATE users SET stripe_connect_onboarded = %s WHERE id = %s", (onboarded, current_user.id))
+        conn.commit()
+    conn.close()
+    return redirect("/settings")
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 @subscription_required
@@ -332,11 +379,11 @@ def settings():
         conn.close()
         return redirect("/")
 
-    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
+    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge, stripe_connect_onboarded FROM users WHERE id = %s", (current_user.id,))
     user_data = c.fetchone()
     conn.close()
 
-    company_name, price_driveway, price_patio, price_foundation, demo_upcharge = user_data
+    company_name, price_driveway, price_patio, price_foundation, demo_upcharge, stripe_connect_onboarded = user_data
 
     return render_template(
         "settings.html",
@@ -344,7 +391,8 @@ def settings():
         price_driveway=price_driveway,
         price_patio=price_patio,
         price_foundation=price_foundation,
-        demo_upcharge=demo_upcharge
+        demo_upcharge=demo_upcharge,
+        stripe_connect_onboarded=stripe_connect_onboarded
     )
 
 
@@ -462,7 +510,7 @@ def view_quote(token):
     c = conn.cursor()
     c.execute("""
         SELECT q.client_name, q.address, q.job_type, q.sqft, q.demo, q.total, q.deposit,
-               q.signature_name, q.signed_at, q.deposit_paid, u.company_name
+               q.signature_name, q.signed_at, q.deposit_paid, u.company_name, u.stripe_connect_onboarded
         FROM quotes q JOIN users u ON q.user_id = u.id
         WHERE q.token = %s
     """, (token,))
@@ -473,7 +521,7 @@ def view_quote(token):
         return "Quote not found", 404
 
     (client_name, address, job_type, sqft, demo, total, deposit,
-     signature_name, signed_at, deposit_paid, company_name) = row
+     signature_name, signed_at, deposit_paid, company_name, contractor_can_collect) = row
 
     return render_template(
         "view_quote.html",
@@ -488,7 +536,8 @@ def view_quote(token):
         deposit=deposit,
         signature_name=signature_name,
         signed_at=signed_at,
-        deposit_paid=deposit_paid
+        deposit_paid=deposit_paid,
+        contractor_can_collect=contractor_can_collect
     )
 
 
@@ -530,19 +579,27 @@ def sign_quote(token):
 def pay_deposit(token):
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT client_name, client_email, deposit, signed_at, deposit_paid FROM quotes WHERE token = %s", (token,))
+    c.execute("""
+        SELECT q.client_name, q.client_email, q.deposit, q.signed_at, q.deposit_paid,
+               u.stripe_connect_id, u.stripe_connect_onboarded
+        FROM quotes q JOIN users u ON q.user_id = u.id
+        WHERE q.token = %s
+    """, (token,))
     row = c.fetchone()
     conn.close()
 
     if row is None:
         return "Quote not found", 404
 
-    client_name, client_email, deposit, signed_at, deposit_paid = row
+    client_name, client_email, deposit, signed_at, deposit_paid, connect_id, onboarded = row
 
     if not signed_at:
         return redirect(f"/view/{token}")
 
     if deposit_paid:
+        return redirect(f"/view/{token}")
+
+    if not onboarded or not connect_id:
         return redirect(f"/view/{token}")
 
     checkout_session = stripe.checkout.Session.create(
@@ -555,6 +612,9 @@ def pay_deposit(token):
             },
             "quantity": 1,
         }],
+        payment_intent_data={
+            "transfer_data": {"destination": connect_id}
+        },
         success_url=f"{APP_URL}/view/{token}",
         cancel_url=f"{APP_URL}/view/{token}",
         customer_email=client_email,
