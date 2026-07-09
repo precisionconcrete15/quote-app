@@ -2,6 +2,25 @@
 {% block title %}Quote from {{ company_name }}{% endblock %}
 {% block content %}
 <h1>{{ company_name }}</h1>
+
+<!-- Stepper de progreso -->
+<div style="display:flex; align-items:center; margin-bottom:6px;">
+    <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+        <div style="width:26px;height:26px;border-radius:50%;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">1</div>
+        <span style="font-size:10px;font-weight:700;color:var(--dark);margin-top:4px;">QUOTE</span>
+    </div>
+    <div style="flex:1; height:2px; background:{% if signed_at %}var(--amber){% else %}var(--line){% endif %}; margin-bottom:16px;"></div>
+    <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+        <div style="width:26px;height:26px;border-radius:50%;background:{% if signed_at %}var(--amber){% else %}var(--line){% endif %};color:{% if signed_at %}#fff{% else %}var(--faint){% endif %};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">2</div>
+        <span style="font-size:10px;font-weight:700;color:{% if signed_at %}var(--dark){% else %}var(--faint){% endif %};margin-top:4px;">SIGNED</span>
+    </div>
+    <div style="flex:1; height:2px; background:{% if deposit_paid %}var(--success){% else %}var(--line){% endif %}; margin-bottom:16px;"></div>
+    <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+        <div style="width:26px;height:26px;border-radius:50%;background:{% if deposit_paid %}var(--success){% else %}var(--line){% endif %};color:{% if deposit_paid %}#fff{% else %}var(--faint){% endif %};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">3</div>
+        <span style="font-size:10px;font-weight:700;color:{% if deposit_paid %}var(--dark){% else %}var(--faint){% endif %};margin-top:4px;">PAID</span>
+    </div>
+</div>
+
 <div class="card">
     <p><strong>Client:</strong> {{ client_name }}</p>
     <p><strong>Address:</strong> {{ address }}</p>
@@ -14,8 +33,8 @@
 
 {% if not signed_at %}
 <div class="card">
-    <h2 style="font-size:18px;">Accept This Quote</h2>
-    <p style="font-size:14px;color:#555;">Type your full name below to accept this quote electronically.</p>
+    <h2>Accept This Quote</h2>
+    <p style="font-size:14px;">Type your full name below to accept this quote electronically.</p>
     <form method="POST" action="/view/{{ token }}/sign">
         <label>Full Name</label>
         <input type="text" name="signature_name" required placeholder="Your full legal name">
@@ -27,10 +46,10 @@
     <div class="alert alert-success">Signed by {{ signature_name }} on {{ signed_at }}</div>
     {% if not deposit_paid %}
         {% if contractor_can_collect %}
-    <p style="font-size:14px;color:#555;">Pay your deposit now to get your project scheduled.</p>
+    <p style="font-size:14px;">Pay your deposit now to get your project scheduled.</p>
     <a href="/view/{{ token }}/pay" class="btn">Pay Deposit — ${{ "{:,.2f}".format(deposit) }}</a>
         {% else %}
-    <p style="font-size:14px;color:#555;">To finish scheduling your project, please contact {{ company_name }} directly to arrange your deposit payment.</p>
+    <p style="font-size:14px;">To finish scheduling your project, please contact {{ company_name }} directly to arrange your deposit payment.</p>
         {% endif %}
     {% else %}
     <div class="alert alert-success">Deposit paid. Thank you! {{ company_name }} will be in touch to schedule your project.</div>

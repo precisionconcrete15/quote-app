@@ -10,9 +10,9 @@
         <td>{{ q[2] }}</td>
         <td><span class="amount">${{ "{:,.2f}".format(q[3]) }}</span></td>
         <td>
-            {% if q[5] %}Deposit Paid
-            {% elif q[4] %}Signed
-            {% else %}Awaiting Signature
+            {% if q[5] %}<span class="pill pill-success">Paid</span>
+            {% elif q[4] %}<span class="pill pill-amber">Signed</span>
+            {% else %}<span class="pill pill-neutral">Awaiting</span>
             {% endif %}
         </td>
         <td>
@@ -23,9 +23,4 @@
     </tr>
     {% endfor %}
 </table>
-<div class="link-row">
-    <a href="/dashboard">Dashboard</a>
-    <a href="/">Back to Home</a>
-    <a href="/logout" class="link-danger">Logout</a>
-</div>
 {% endblock %}

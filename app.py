@@ -250,8 +250,8 @@ def logout():
 def billing():
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT subscription_status, trial_end FROM users WHERE id = %s", (current_user.id,))
-    status, trial_end = c.fetchone()
+    c.execute("SELECT subscription_status, trial_end, company_name FROM users WHERE id = %s", (current_user.id,))
+    status, trial_end, company_name = c.fetchone()
     conn.close()
 
     now = datetime.utcnow()
@@ -266,7 +266,7 @@ def billing():
         message = "Your trial has ended or your subscription is inactive. Subscribe to keep using Qotixo."
         show_button = True
 
-    return render_template("billing.html", message=message, show_button=show_button)
+    return render_template("billing.html", message=message, show_button=show_button, active_nav="billing", company_name=company_name)
 
 
 @app.route("/subscribe")
@@ -423,8 +423,10 @@ def services():
 
     c.execute("SELECT id, name, unit_label, unit_price FROM services WHERE user_id = %s ORDER BY id", (current_user.id,))
     all_services = c.fetchall()
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
+    company_name = c.fetchone()[0]
     conn.close()
-    return render_template("services.html", services=all_services)
+    return render_template("services.html", services=all_services, active_nav="services", company_name=company_name)
 
 
 @app.route("/services/<int:id>/delete")
@@ -460,7 +462,8 @@ def settings():
     return render_template(
         "settings.html",
         company_name=company_name,
-        stripe_connect_onboarded=stripe_connect_onboarded
+        stripe_connect_onboarded=stripe_connect_onboarded,
+        active_nav="settings"
     )
 
 
@@ -479,7 +482,8 @@ def home():
         "home.html",
         company_name=company_name,
         services=user_services,
-        has_services=len(user_services) > 0
+        has_services=len(user_services) > 0,
+        active_nav="home"
     )
 
 
@@ -569,7 +573,9 @@ def quote():
         unit_label=unit_label,
         additional_charges=additional_charges,
         total=total,
-        deposit=deposit
+        deposit=deposit,
+        active_nav="quotes",
+        company_name=company_name
     )
 
 
@@ -589,6 +595,8 @@ def dashboard():
         FROM quotes WHERE user_id = %s
     """, (current_user.id,))
     total_quotes, pipeline_value, signed_count, paid_count, deposits_collected = c.fetchone()
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
+    company_name = c.fetchone()[0]
     conn.close()
 
     signed_rate = round((signed_count / total_quotes) * 100) if total_quotes else 0
@@ -602,7 +610,9 @@ def dashboard():
         paid_count=paid_count,
         deposits_collected=deposits_collected,
         signed_rate=signed_rate,
-        paid_rate=paid_rate
+        paid_rate=paid_rate,
+        active_nav="dashboard",
+        company_name=company_name
     )
 
 
@@ -617,8 +627,10 @@ def view_quotes():
         FROM quotes WHERE user_id = %s ORDER BY id DESC
     """, (current_user.id,))
     all_quotes = c.fetchall()
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
+    company_name = c.fetchone()[0]
     conn.close()
-    return render_template("quotes.html", quotes=all_quotes)
+    return render_template("quotes.html", quotes=all_quotes, active_nav="quotes", company_name=company_name)
 
 
 @app.route("/view/<token>")
