@@ -253,7 +253,7 @@ def webhook():
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
         metadata = stripe_field(session_obj, "metadata") or {}
-        quote_token = metadata.get("quote_token") if hasattr(metadata, "get") else None
+        quote_token = stripe_field(metadata, "quote_token")
 
         if quote_token:
             c.execute("UPDATE quotes SET deposit_paid = TRUE WHERE token = %s", (quote_token,))
