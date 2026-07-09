@@ -135,6 +135,39 @@ def init_db():
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN DEFAULT FALSE")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_id TEXT")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_connect_onboarded BOOLEAN DEFAULT FALSE")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS services (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            name TEXT,
+            unit_label TEXT,
+            unit_price REAL
+        )
+    """)
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS service_name TEXT")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quantity REAL")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS unit_label TEXT")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS additional_charges REAL DEFAULT 0")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS services_migrated BOOLEAN DEFAULT FALSE")
+
+    # Migración de una sola vez: traslada los precios viejos (driveway/patio/foundation)
+    # de cuentas ya existentes a la nueva tabla de servicios, para que no pierdan sus precios.
+    c.execute("""
+        INSERT INTO services (user_id, name, unit_label, unit_price)
+        SELECT id, 'Driveway', 'sqft', price_driveway FROM users
+        WHERE price_driveway IS NOT NULL AND services_migrated = FALSE
+    """)
+    c.execute("""
+        INSERT INTO services (user_id, name, unit_label, unit_price)
+        SELECT id, 'Patio', 'sqft', price_patio FROM users
+        WHERE price_patio IS NOT NULL AND services_migrated = FALSE
+    """)
+    c.execute("""
+        INSERT INTO services (user_id, name, unit_label, unit_price)
+        SELECT id, 'Foundation', 'sqft', price_foundation FROM users
+        WHERE price_foundation IS NOT NULL AND services_migrated = FALSE
+    """)
+    c.execute("UPDATE users SET services_migrated = TRUE WHERE services_migrated = FALSE")
     conn.commit()
     conn.close()
 
@@ -153,9 +186,21 @@ def register():
         c = conn.cursor()
         try:
             c.execute("""INSERT INTO users
-                (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge, subscription_status, trial_end)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (email, password, company_name, price_driveway, price_patio, price_foundation, demo_upcharge, subscription_status, trial_end, services_migrated)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id""",
                       (email, password, company_name, 25, 22, 28, 7, "trialing", trial_end))
+            new_user_id = c.fetchone()[0]
+
+            starter_services = [
+                ("Driveway", "sqft", 25.0),
+                ("Patio", "sqft", 22.0),
+                ("Foundation", "sqft", 28.0),
+            ]
+            for name, unit_label, unit_price in starter_services:
+                c.execute(
+                    "INSERT INTO services (user_id, name, unit_label, unit_price) VALUES (%s, %s, %s, %s)",
+                    (new_user_id, name, unit_label, unit_price)
+                )
             conn.commit()
 
             send_email(
@@ -356,6 +401,44 @@ def connect_stripe_return():
     return redirect("/settings")
 
 
+@app.route("/services", methods=["GET", "POST"])
+@login_required
+@subscription_required
+def services():
+    conn = get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        unit_label = request.form["unit_label"].strip()
+        unit_price = float(request.form["unit_price"])
+        if name and unit_label:
+            c.execute(
+                "INSERT INTO services (user_id, name, unit_label, unit_price) VALUES (%s, %s, %s, %s)",
+                (current_user.id, name, unit_label, unit_price)
+            )
+            conn.commit()
+        conn.close()
+        return redirect("/services")
+
+    c.execute("SELECT id, name, unit_label, unit_price FROM services WHERE user_id = %s ORDER BY id", (current_user.id,))
+    all_services = c.fetchall()
+    conn.close()
+    return render_template("services.html", services=all_services)
+
+
+@app.route("/services/<int:id>/delete")
+@login_required
+@subscription_required
+def delete_service(id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM services WHERE id = %s AND user_id = %s", (id, current_user.id))
+    conn.commit()
+    conn.close()
+    return redirect("/services")
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 @subscription_required
@@ -365,33 +448,18 @@ def settings():
 
     if request.method == "POST":
         company_name = request.form["company_name"]
-        price_driveway = float(request.form["price_driveway"])
-        price_patio = float(request.form["price_patio"])
-        price_foundation = float(request.form["price_foundation"])
-        demo_upcharge = float(request.form["demo_upcharge"])
-
-        c.execute("""
-            UPDATE users
-            SET company_name = %s, price_driveway = %s, price_patio = %s, price_foundation = %s, demo_upcharge = %s
-            WHERE id = %s
-        """, (company_name, price_driveway, price_patio, price_foundation, demo_upcharge, current_user.id))
+        c.execute("UPDATE users SET company_name = %s WHERE id = %s", (company_name, current_user.id))
         conn.commit()
         conn.close()
         return redirect("/")
 
-    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge, stripe_connect_onboarded FROM users WHERE id = %s", (current_user.id,))
-    user_data = c.fetchone()
+    c.execute("SELECT company_name, stripe_connect_onboarded FROM users WHERE id = %s", (current_user.id,))
+    company_name, stripe_connect_onboarded = c.fetchone()
     conn.close()
-
-    company_name, price_driveway, price_patio, price_foundation, demo_upcharge, stripe_connect_onboarded = user_data
 
     return render_template(
         "settings.html",
         company_name=company_name,
-        price_driveway=price_driveway,
-        price_patio=price_patio,
-        price_foundation=price_foundation,
-        demo_upcharge=demo_upcharge,
         stripe_connect_onboarded=stripe_connect_onboarded
     )
 
@@ -404,8 +472,15 @@ def home():
     c = conn.cursor()
     c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
     company_name = c.fetchone()[0]
+    c.execute("SELECT id, name, unit_label, unit_price FROM services WHERE user_id = %s ORDER BY id", (current_user.id,))
+    user_services = c.fetchall()
     conn.close()
-    return render_template("home.html", company_name=company_name)
+    return render_template(
+        "home.html",
+        company_name=company_name,
+        services=user_services,
+        has_services=len(user_services) > 0
+    )
 
 
 @app.route("/quote", methods=["POST"])
@@ -415,38 +490,42 @@ def quote():
     client_name = request.form["client_name"]
     client_email = request.form["client_email"]
     address = request.form["address"]
-    sqft = int(request.form["sqft"])
-    job_type = request.form["job_type"]
-    demo = request.form["demo"]
+    service_id = int(request.form["service_id"])
+    quantity = float(request.form["quantity"])
+    additional_charges = float(request.form.get("additional_charges") or 0)
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT company_name, price_driveway, price_patio, price_foundation, demo_upcharge FROM users WHERE id = %s", (current_user.id,))
-    user_row = c.fetchone()
+    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
+    company_name = c.fetchone()[0]
+    c.execute("SELECT name, unit_label, unit_price FROM services WHERE id = %s AND user_id = %s", (service_id, current_user.id))
+    service_row = c.fetchone()
     conn.close()
 
-    company_name, price_driveway, price_patio, price_foundation, demo_upcharge = user_row
+    if service_row is None:
+        return redirect("/")
 
-    if job_type == "driveway":
-        price_per_sqft = price_driveway
-    elif job_type == "patio":
-        price_per_sqft = price_patio
-    else:
-        price_per_sqft = price_foundation
+    service_name, unit_label, unit_price = service_row
 
-    if demo == "yes":
-        price_per_sqft += demo_upcharge
-
-    total = price_per_sqft * sqft
+    total = (unit_price * quantity) + additional_charges
     deposit = min(1000, total * 0.10)
 
     conn = get_db()
     c = conn.cursor()
     quote_token = secrets.token_urlsafe(16)
-    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id, token) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-              (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id, quote_token))
+    c.execute("""
+        INSERT INTO quotes
+            (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id, token,
+             service_name, quantity, unit_label, additional_charges)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        client_name, address, service_name, int(round(quantity)), ("yes" if additional_charges > 0 else "no"),
+        total, deposit, client_email, current_user.id, quote_token,
+        service_name, quantity, unit_label, additional_charges
+    ))
     conn.commit()
     conn.close()
+
     path = f"quote_{client_name}.pdf"
     pdf = FPDF()
     pdf.add_page()
@@ -455,9 +534,10 @@ def quote():
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, f"Client: {client_name}", ln=True)
     pdf.cell(0, 10, f"Address: {address}", ln=True)
-    pdf.cell(0, 10, f"Job Type: {job_type}", ln=True)
-    pdf.cell(0, 10, f"Square Footage: {sqft}", ln=True)
-    pdf.cell(0, 10, f"Demo: {demo}", ln=True)
+    pdf.cell(0, 10, f"Service: {service_name}", ln=True)
+    pdf.cell(0, 10, f"Quantity: {quantity:g} {unit_label}", ln=True)
+    if additional_charges > 0:
+        pdf.cell(0, 10, f"Additional Charges: ${additional_charges:,.2f}", ln=True)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
     pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
@@ -477,16 +557,17 @@ def quote():
     send_email(
         current_user.email,
         f"New lead: {client_name}",
-        f"You just generated a new quote.\n\nClient: {client_name}\nEmail: {client_email}\nAddress: {address}\nJob Type: {job_type}\nSquare Footage: {sqft}\nDemo: {demo}\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}"
+        f"You just generated a new quote.\n\nClient: {client_name}\nEmail: {client_email}\nAddress: {address}\nService: {service_name}\nQuantity: {quantity:g} {unit_label}\nAdditional Charges: ${additional_charges:,.2f}\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}"
     )
 
     return render_template(
         "quote_summary.html",
         client_name=client_name,
         address=address,
-        job_type=job_type,
-        sqft=sqft,
-        demo=demo,
+        service_name=service_name,
+        quantity=quantity,
+        unit_label=unit_label,
+        additional_charges=additional_charges,
         total=total,
         deposit=deposit
     )
@@ -531,7 +612,10 @@ def dashboard():
 def view_quotes():
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM quotes WHERE user_id = %s", (current_user.id,))
+    c.execute("""
+        SELECT id, client_name, service_name, total, signed_at, deposit_paid
+        FROM quotes WHERE user_id = %s ORDER BY id DESC
+    """, (current_user.id,))
     all_quotes = c.fetchall()
     conn.close()
     return render_template("quotes.html", quotes=all_quotes)
@@ -542,7 +626,7 @@ def view_quote(token):
     conn = get_db()
     c = conn.cursor()
     c.execute("""
-        SELECT q.client_name, q.address, q.job_type, q.sqft, q.demo, q.total, q.deposit,
+        SELECT q.client_name, q.address, q.service_name, q.quantity, q.unit_label, q.additional_charges, q.total, q.deposit,
                q.signature_name, q.signed_at, q.deposit_paid, u.company_name, u.stripe_connect_onboarded
         FROM quotes q JOIN users u ON q.user_id = u.id
         WHERE q.token = %s
@@ -553,7 +637,7 @@ def view_quote(token):
     if row is None:
         return "Quote not found", 404
 
-    (client_name, address, job_type, sqft, demo, total, deposit,
+    (client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit,
      signature_name, signed_at, deposit_paid, company_name, contractor_can_collect) = row
 
     return render_template(
@@ -562,9 +646,10 @@ def view_quote(token):
         company_name=company_name,
         client_name=client_name,
         address=address,
-        job_type=job_type,
-        sqft=sqft,
-        demo=demo,
+        service_name=service_name,
+        quantity=quantity,
+        unit_label=unit_label,
+        additional_charges=additional_charges,
         total=total,
         deposit=deposit,
         signature_name=signature_name,
@@ -703,7 +788,10 @@ def delete_quote(id):
 def generate_pdf(id):
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM quotes WHERE id = %s AND user_id = %s", (id, current_user.id))
+    c.execute("""
+        SELECT client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit
+        FROM quotes WHERE id = %s AND user_id = %s
+    """, (id, current_user.id))
     q = c.fetchone()
     c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
     company_name = c.fetchone()[0]
@@ -712,19 +800,22 @@ def generate_pdf(id):
     if q is None:
         return "Quote not found", 404
 
+    client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit = q
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 20)
     pdf.cell(0, 15, company_name, ln=True)
     pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"Client: {q[1]}", ln=True)
-    pdf.cell(0, 10, f"Address: {q[2]}", ln=True)
-    pdf.cell(0, 10, f"Job Type: {q[3]}", ln=True)
-    pdf.cell(0, 10, f"Square Footage: {q[4]}", ln=True)
-    pdf.cell(0, 10, f"Demo: {q[5]}", ln=True)
+    pdf.cell(0, 10, f"Client: {client_name}", ln=True)
+    pdf.cell(0, 10, f"Address: {address}", ln=True)
+    pdf.cell(0, 10, f"Service: {service_name}", ln=True)
+    pdf.cell(0, 10, f"Quantity: {quantity:g} {unit_label}", ln=True)
+    if additional_charges:
+        pdf.cell(0, 10, f"Additional Charges: ${additional_charges:,.2f}", ln=True)
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"Total: ${q[6]:,.2f}", ln=True)
-    pdf.cell(0, 10, f"Deposit Due: ${q[7]:,.2f}", ln=True)
+    pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
+    pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
 
     path = f"quote_{id}.pdf"
     pdf.output(path)

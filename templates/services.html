@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Services{% endblock %}
+{% block content %}
+<h1>Your Services</h1>
+<p style="font-size:14px;">Add every type of job you charge for — concrete, painting, electrical, hourly labor, flat-rate jobs, anything. Each one gets its own price.</p>
+
+<table>
+    <tr><th>Service</th><th>Price</th><th></th></tr>
+    {% for s in services %}
+    <tr>
+        <td>{{ s[1] }}</td>
+        <td><span class="amount">${{ "{:,.2f}".format(s[3]) }}</span> / {{ s[2] }}</td>
+        <td><a href="/services/{{ s[0] }}/delete" class="link-danger">Del</a></td>
+    </tr>
+    {% endfor %}
+</table>
+
+<div class="card">
+    <h2>Add a Service</h2>
+    <form method="POST" action="/services">
+        <label>Service Name</label>
+        <input type="text" name="name" placeholder="e.g. Driveway, Roof Repair, Hourly Labor" required>
+        <label>Unit</label>
+        <input type="text" name="unit_label" placeholder="e.g. sqft, hour, flat fee" required>
+        <label>Price per Unit ($)</label>
+        <input type="number" step="0.01" name="unit_price" required>
+        <button type="submit">Add Service</button>
+    </form>
+</div>
+
+<div class="link-row">
+    <a href="/settings">Back to Settings</a>
+</div>
+{% endblock %}

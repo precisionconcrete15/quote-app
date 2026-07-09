@@ -2,6 +2,14 @@
 {% block title %}{{ company_name }} Quote Generator{% endblock %}
 {% block content %}
 <h1>{{ company_name }}</h1>
+
+{% if not has_services %}
+<div class="card">
+    <div class="alert">You haven't added any services yet.</div>
+    <p style="font-size:14px;">Add at least one service (with its price) before you can generate a quote.</p>
+    <a href="/services" class="btn">Add a Service</a>
+</div>
+{% else %}
 <form method="POST" action="/quote">
     <label>Client Name</label>
     <input type="text" name="client_name" required>
@@ -9,24 +17,24 @@
     <input type="email" name="client_email" required>
     <label>Address</label>
     <input type="text" name="address" required>
-    <label>Square Footage</label>
-    <input type="number" name="sqft" required>
-    <label>Job Type</label>
-    <select name="job_type">
-        <option value="driveway">Driveway</option>
-        <option value="patio">Patio</option>
-        <option value="foundation">Foundation</option>
+    <label>Service</label>
+    <select name="service_id" required>
+        {% for s in services %}
+        <option value="{{ s[0] }}">{{ s[1] }} (${{ "{:,.2f}".format(s[3]) }} / {{ s[2] }})</option>
+        {% endfor %}
     </select>
-    <label>Demo needed?</label>
-    <select name="demo">
-        <option value="yes">Yes</option>
-        <option value="no">No</option>
-    </select>
+    <label>Quantity</label>
+    <input type="number" step="0.01" name="quantity" placeholder="e.g. square feet, hours, units" required>
+    <label>Additional Charges ($, optional)</label>
+    <input type="number" step="0.01" name="additional_charges" placeholder="0.00" value="0">
     <button type="submit">Generate Quote</button>
 </form>
+{% endif %}
+
 <div class="link-row">
     <a href="/dashboard">Dashboard</a>
     <a href="/quotes">View All Quotes</a>
+    <a href="/services">Services</a>
     <a href="/settings">Settings</a>
     <a href="/billing">Billing</a>
     <a href="/logout" class="link-danger">Logout</a>

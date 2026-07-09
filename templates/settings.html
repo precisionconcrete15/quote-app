@@ -5,16 +5,14 @@
 <form method="POST" action="/settings">
     <label>Company Name</label>
     <input type="text" name="company_name" value="{{ company_name }}" required>
-    <label>Driveway price per sqft ($)</label>
-    <input type="number" step="0.01" name="price_driveway" value="{{ price_driveway }}" required>
-    <label>Patio price per sqft ($)</label>
-    <input type="number" step="0.01" name="price_patio" value="{{ price_patio }}" required>
-    <label>Foundation price per sqft ($)</label>
-    <input type="number" step="0.01" name="price_foundation" value="{{ price_foundation }}" required>
-    <label>Demo upcharge per sqft ($)</label>
-    <input type="number" step="0.01" name="demo_upcharge" value="{{ demo_upcharge }}" required>
     <button type="submit">Save</button>
 </form>
+
+<div class="card">
+    <h2>Your Services &amp; Pricing</h2>
+    <p style="font-size:14px;">Manage what you charge for — add, edit, or remove services anytime.</p>
+    <a href="/services" class="btn btn-outline">Manage Services</a>
+</div>
 
 <div class="card">
     <h2 style="font-size:18px;">Get Paid Deposits Online</h2>

@@ -3,21 +3,21 @@
 {% block content %}
 <h1>All Quotes</h1>
 <table>
-    <tr><th>Client</th><th>Job</th><th>Total</th><th>Status</th><th></th></tr>
+    <tr><th>Client</th><th>Service</th><th>Total</th><th>Status</th><th></th></tr>
     {% for q in quotes %}
     <tr>
         <td>{{ q[1] }}</td>
-        <td>{{ q[3] }}</td>
-        <td>${{ "{:,.2f}".format(q[6]) }}</td>
+        <td>{{ q[2] }}</td>
+        <td><span class="amount">${{ "{:,.2f}".format(q[3]) }}</span></td>
         <td>
-            {% if q[13] %}Deposit Paid
-            {% elif q[12] %}Signed
+            {% if q[5] %}Deposit Paid
+            {% elif q[4] %}Signed
             {% else %}Awaiting Signature
             {% endif %}
         </td>
         <td>
             <a href="/pdf/{{ q[0] }}">PDF</a>
-            {% if not q[12] %} · <a href="/remind/{{ q[0] }}">Remind</a>{% endif %}
+            {% if not q[4] %} · <a href="/remind/{{ q[0] }}">Remind</a>{% endif %}
              · <a href="/delete/{{ q[0] }}" class="link-danger">Del</a>
         </td>
     </tr>
