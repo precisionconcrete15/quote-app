@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Quote from {{ company_name }}{% endblock %}
+{% block content %}
+<h1>{{ company_name }}</h1>
+<div class="card">
+    <p><strong>Client:</strong> {{ client_name }}</p>
+    <p><strong>Address:</strong> {{ address }}</p>
+    <p><strong>Job Type:</strong> {{ job_type }}</p>
+    <p><strong>Square Footage:</strong> {{ sqft }}</p>
+    <p><strong>Demo:</strong> {{ demo }}</p>
+    <p style="font-size:22px;font-weight:700;color:var(--amber)">Total: ${{ "{:,.2f}".format(total) }}</p>
+    <p><strong>Deposit Due:</strong> ${{ "{:,.2f}".format(deposit) }}</p>
+</div>
+
+{% if not signed_at %}
+<div class="card">
+    <h2 style="font-size:18px;">Accept This Quote</h2>
+    <p style="font-size:14px;color:#555;">Type your full name below to accept this quote electronically.</p>
+    <form method="POST" action="/view/{{ token }}/sign">
+        <label>Full Name</label>
+        <input type="text" name="signature_name" required placeholder="Your full legal name">
+        <button type="submit">Accept &amp; Sign</button>
+    </form>
+</div>
+{% else %}
+<div class="card">
+    <div class="alert alert-success">Signed by {{ signature_name }} on {{ signed_at }}</div>
+    {% if not deposit_paid %}
+    <p style="font-size:14px;color:#555;">Pay your deposit now to get your project scheduled.</p>
+    <a href="/view/{{ token }}/pay" class="btn">Pay Deposit — ${{ "{:,.2f}".format(deposit) }}</a>
+    {% else %}
+    <div class="alert alert-success">Deposit paid. Thank you! {{ company_name }} will be in touch to schedule your project.</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

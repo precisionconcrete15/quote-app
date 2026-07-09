@@ -7,6 +7,7 @@ from functools import wraps
 from datetime import datetime, timedelta
 import os
 import base64
+import secrets
 import requests
 import stripe
 
@@ -128,6 +129,10 @@ def init_db():
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trialing'")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end TIMESTAMP")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS token TEXT UNIQUE")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signature_name TEXT")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN DEFAULT FALSE")
     conn.commit()
     conn.close()
 
@@ -247,18 +252,39 @@ def webhook():
 
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
-        user_id = stripe_field(session_obj, "client_reference_id")
-        customer_id = stripe_field(session_obj, "customer")
-        subscription_id = stripe_field(session_obj, "subscription")
-        if user_id and subscription_id:
-            user_id = int(user_id)
-            current_sub = stripe.Subscription.retrieve(subscription_id)
-            current_status = stripe_field(current_sub, "status")
-            c.execute(
-                "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = %s WHERE id = %s",
-                (customer_id, subscription_id, current_status, user_id)
-            )
+        metadata = stripe_field(session_obj, "metadata") or {}
+        quote_token = metadata.get("quote_token") if hasattr(metadata, "get") else None
+
+        if quote_token:
+            c.execute("UPDATE quotes SET deposit_paid = TRUE WHERE token = %s", (quote_token,))
             conn.commit()
+
+            c.execute("""
+                SELECT q.client_name, q.deposit, u.email
+                FROM quotes q JOIN users u ON q.user_id = u.id
+                WHERE q.token = %s
+            """, (quote_token,))
+            row = c.fetchone()
+            if row:
+                client_name, deposit, owner_email = row
+                send_email(
+                    owner_email,
+                    f"Deposit paid: {client_name}",
+                    f"{client_name} just paid their deposit of ${deposit:,.2f}. You're ready to schedule the job."
+                )
+        else:
+            user_id = stripe_field(session_obj, "client_reference_id")
+            customer_id = stripe_field(session_obj, "customer")
+            subscription_id = stripe_field(session_obj, "subscription")
+            if user_id and subscription_id:
+                user_id = int(user_id)
+                current_sub = stripe.Subscription.retrieve(subscription_id)
+                current_status = stripe_field(current_sub, "status")
+                c.execute(
+                    "UPDATE users SET stripe_customer_id = %s, stripe_subscription_id = %s, subscription_status = %s WHERE id = %s",
+                    (customer_id, subscription_id, current_status, user_id)
+                )
+                conn.commit()
 
     elif event["type"] == "customer.subscription.updated":
         sub = event["data"]["object"]
@@ -368,8 +394,9 @@ def quote():
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-              (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id))
+    quote_token = secrets.token_urlsafe(16)
+    c.execute("INSERT INTO quotes (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id, token) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+              (client_name, address, job_type, sqft, demo, total, deposit, client_email, current_user.id, quote_token))
     conn.commit()
     conn.close()
     path = f"quote_{client_name}.pdf"
@@ -394,7 +421,7 @@ def quote():
     send_email(
         client_email,
         f"Your Quote from {company_name}",
-        f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nThank you,\n{company_name}",
+        f"Hi {client_name},\n\nPlease find your quote attached.\n\nTotal: ${total:,.2f}\nDeposit Due: ${deposit:,.2f}\n\nTo accept this quote and pay your deposit online, click here:\n{APP_URL}/view/{quote_token}\n\nThank you,\n{company_name}",
         pdf_base64,
         f"quote_{client_name}.pdf"
     )
@@ -427,6 +454,113 @@ def view_quotes():
     all_quotes = c.fetchall()
     conn.close()
     return render_template("quotes.html", quotes=all_quotes)
+
+
+@app.route("/view/<token>")
+def view_quote(token):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT q.client_name, q.address, q.job_type, q.sqft, q.demo, q.total, q.deposit,
+               q.signature_name, q.signed_at, q.deposit_paid, u.company_name
+        FROM quotes q JOIN users u ON q.user_id = u.id
+        WHERE q.token = %s
+    """, (token,))
+    row = c.fetchone()
+    conn.close()
+
+    if row is None:
+        return "Quote not found", 404
+
+    (client_name, address, job_type, sqft, demo, total, deposit,
+     signature_name, signed_at, deposit_paid, company_name) = row
+
+    return render_template(
+        "view_quote.html",
+        token=token,
+        company_name=company_name,
+        client_name=client_name,
+        address=address,
+        job_type=job_type,
+        sqft=sqft,
+        demo=demo,
+        total=total,
+        deposit=deposit,
+        signature_name=signature_name,
+        signed_at=signed_at,
+        deposit_paid=deposit_paid
+    )
+
+
+@app.route("/view/<token>/sign", methods=["POST"])
+def sign_quote(token):
+    signature_name = request.form.get("signature_name", "").strip()
+    if not signature_name:
+        return redirect(f"/view/{token}")
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT client_name, user_id FROM quotes WHERE token = %s", (token,))
+    row = c.fetchone()
+    if row is None:
+        conn.close()
+        return "Quote not found", 404
+
+    client_name, user_id = row
+    c.execute(
+        "UPDATE quotes SET signature_name = %s, signed_at = %s WHERE token = %s",
+        (signature_name, datetime.utcnow(), token)
+    )
+    conn.commit()
+
+    c.execute("SELECT email, company_name FROM users WHERE id = %s", (user_id,))
+    owner_email, company_name = c.fetchone()
+    conn.close()
+
+    send_email(
+        owner_email,
+        f"Quote signed: {client_name}",
+        f"{client_name} just accepted their quote by signing as '{signature_name}'."
+    )
+
+    return redirect(f"/view/{token}")
+
+
+@app.route("/view/<token>/pay")
+def pay_deposit(token):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT client_name, client_email, deposit, signed_at, deposit_paid FROM quotes WHERE token = %s", (token,))
+    row = c.fetchone()
+    conn.close()
+
+    if row is None:
+        return "Quote not found", 404
+
+    client_name, client_email, deposit, signed_at, deposit_paid = row
+
+    if not signed_at:
+        return redirect(f"/view/{token}")
+
+    if deposit_paid:
+        return redirect(f"/view/{token}")
+
+    checkout_session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": f"Deposit for {client_name}"},
+                "unit_amount": int(round(deposit * 100)),
+            },
+            "quantity": 1,
+        }],
+        success_url=f"{APP_URL}/view/{token}",
+        cancel_url=f"{APP_URL}/view/{token}",
+        customer_email=client_email,
+        metadata={"quote_token": token},
+    )
+    return redirect(checkout_session.url, code=303)
 
 
 @app.route("/delete/<int:id>")
