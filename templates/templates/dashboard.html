@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="card">
+    <p style="font-size:14px;color:#555;margin:0 0 4px;">Total Quotes Sent</p>
+    <p style="font-size:32px;font-weight:700;margin:0;">{{ total_quotes }}</p>
+</div>
+
+<div class="card">
+    <p style="font-size:14px;color:#555;margin:0 0 4px;">Pipeline Value (all quotes)</p>
+    <p style="font-size:28px;font-weight:700;color:var(--amber);margin:0;">${{ "{:,.2f}".format(pipeline_value) }}</p>
+</div>
+
+<div class="card">
+    <p style="font-size:14px;color:#555;margin:0 0 4px;">Signed</p>
+    <p style="font-size:28px;font-weight:700;margin:0;">{{ signed_count }} <span style="font-size:16px;font-weight:400;color:#555;">({{ signed_rate }}%)</span></p>
+</div>
+
+<div class="card">
+    <p style="font-size:14px;color:#555;margin:0 0 4px;">Deposits Collected</p>
+    <p style="font-size:28px;font-weight:700;margin:0;">{{ paid_count }} <span style="font-size:16px;font-weight:400;color:#555;">({{ paid_rate }}%)</span></p>
+    <p style="font-size:20px;font-weight:700;color:#2f7d32;margin:8px 0 0;">${{ "{:,.2f}".format(deposits_collected) }} total</p>
+</div>
+
+<div class="link-row">
+    <a href="/quotes">View All Quotes</a>
+    <a href="/">Back to Home</a>
+</div>
+{% endblock %}

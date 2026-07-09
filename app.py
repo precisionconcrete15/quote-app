@@ -492,6 +492,39 @@ def quote():
     )
 
 
+@app.route("/dashboard")
+@login_required
+@subscription_required
+def dashboard():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(total), 0),
+            COALESCE(SUM(CASE WHEN signed_at IS NOT NULL THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN deposit_paid THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN deposit_paid THEN deposit ELSE 0 END), 0)
+        FROM quotes WHERE user_id = %s
+    """, (current_user.id,))
+    total_quotes, pipeline_value, signed_count, paid_count, deposits_collected = c.fetchone()
+    conn.close()
+
+    signed_rate = round((signed_count / total_quotes) * 100) if total_quotes else 0
+    paid_rate = round((paid_count / total_quotes) * 100) if total_quotes else 0
+
+    return render_template(
+        "dashboard.html",
+        total_quotes=total_quotes,
+        pipeline_value=pipeline_value,
+        signed_count=signed_count,
+        paid_count=paid_count,
+        deposits_collected=deposits_collected,
+        signed_rate=signed_rate,
+        paid_rate=paid_rate
+    )
+
+
 @app.route("/quotes")
 @login_required
 @subscription_required
