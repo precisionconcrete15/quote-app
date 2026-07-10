@@ -33,6 +33,191 @@ def stripe_field(obj, key):
         return None
 
 
+def build_quote_pdf(path, company_name, owner_email, quote_id, created_at,
+                     client_name, client_email, address,
+                     service_name, quantity, unit_label, unit_price, additional_charges,
+                     total, deposit, signature_name, signed_at, terms_note):
+    DARK = (26, 23, 20)
+    AMBER = (232, 160, 32)
+    LIGHT = (245, 242, 237)
+    GREY_TEXT = (90, 84, 76)
+    WHITE = (255, 255, 255)
+
+    valid_until = created_at + timedelta(days=30)
+    quote_number = f"{quote_id:04d}"
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=18)
+
+    # ---------- Encabezado de marca (oscuro + ámbar) ----------
+    pdf.set_fill_color(*DARK)
+    pdf.rect(0, 0, 130, 24, "F")
+    pdf.set_fill_color(*AMBER)
+    pdf.rect(130, 0, 80, 24, "F")
+
+    pdf.set_xy(10, 6)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(115, 8, company_name, ln=2)
+    pdf.set_font("Arial", size=9)
+    pdf.set_x(10)
+    pdf.cell(115, 6, owner_email, ln=1)
+
+    pdf.set_xy(132, 7)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(76, 8, "ESTIMATE / QUOTE", align="R")
+
+    pdf.set_y(30)
+
+    # ---------- Bloques FROM / QUOTE FOR ----------
+    box_y = pdf.get_y()
+    pdf.set_fill_color(*LIGHT)
+    pdf.rect(10, box_y, 90, 26, "F")
+    pdf.rect(110, box_y, 90, 26, "F")
+
+    pdf.set_xy(14, box_y + 3)
+    pdf.set_font("Arial", "B", 8)
+    pdf.set_text_color(180, 130, 20)
+    pdf.cell(80, 5, "FROM")
+    pdf.set_xy(14, box_y + 8)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(80, 5, company_name[:34])
+    pdf.set_xy(14, box_y + 14)
+    pdf.set_font("Arial", size=9)
+    pdf.set_text_color(*GREY_TEXT)
+    pdf.cell(80, 5, owner_email[:38])
+
+    pdf.set_xy(114, box_y + 3)
+    pdf.set_text_color(180, 130, 20)
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(80, 5, "QUOTE FOR")
+    pdf.set_xy(114, box_y + 8)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(80, 5, client_name[:34])
+    pdf.set_xy(114, box_y + 14)
+    pdf.set_font("Arial", size=9)
+    pdf.set_text_color(*GREY_TEXT)
+    pdf.multi_cell(85, 5, f"{address}\n{client_email}")
+
+    pdf.set_y(box_y + 32)
+
+    # ---------- Fila de metadatos ----------
+    meta_y = pdf.get_y()
+    pdf.set_fill_color(*DARK)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font("Arial", "B", 8)
+    col_w = 45
+    for label in ["QUOTE #", "DATE", "VALID UNTIL", "SERVICE"]:
+        pdf.cell(col_w, 7, label, fill=True, border=0)
+    pdf.ln(7)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", size=9)
+    pdf.set_draw_color(*LIGHT)
+    pdf.cell(col_w, 8, quote_number, border=1)
+    pdf.cell(col_w, 8, created_at.strftime("%b %d, %Y"), border=1)
+    pdf.cell(col_w, 8, valid_until.strftime("%b %d, %Y"), border=1)
+    pdf.cell(col_w, 8, service_name[:20], border=1)
+    pdf.ln(14)
+
+    # ---------- Tabla de desglose ----------
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_text_color(*DARK)
+    pdf.cell(0, 6, "PROJECT DETAIL", ln=1)
+    pdf.set_draw_color(*AMBER)
+    pdf.set_line_width(0.6)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(4)
+
+    widths = [75, 25, 25, 30, 25]
+    headers = ["Description", "Qty", "Unit", "Unit Price", "Total"]
+    pdf.set_fill_color(*DARK)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font("Arial", "B", 8)
+    for w, h in zip(widths, headers):
+        pdf.cell(w, 7, h, fill=True)
+    pdf.ln(7)
+
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", size=9)
+    line_total = unit_price * quantity
+    row_vals = [service_name[:34], f"{quantity:g}", unit_label[:8], f"${unit_price:,.2f}", f"${line_total:,.2f}"]
+    for w, v in zip(widths, row_vals):
+        pdf.cell(w, 8, v, border="B")
+    pdf.ln(8)
+
+    if additional_charges:
+        row_vals = ["Additional Charges", "1", "flat", f"${additional_charges:,.2f}", f"${additional_charges:,.2f}"]
+        for w, v in zip(widths, row_vals):
+            pdf.cell(w, 8, v, border="B")
+        pdf.ln(8)
+
+    pdf.set_fill_color(*AMBER)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(155, 9, "TOTAL", fill=True, align="R")
+    pdf.cell(25, 9, f"${total:,.2f}", fill=True, align="R")
+    pdf.ln(16)
+
+    # ---------- Calendario de pago ----------
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, "PAYMENT", ln=1)
+    pdf.set_draw_color(*AMBER)
+    pdf.set_line_width(0.6)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(4)
+
+    balance = total - deposit
+    pdf.set_fill_color(*DARK)
+    pdf.set_text_color(*WHITE)
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(90, 7, "DEPOSIT DUE NOW", fill=True)
+    pdf.cell(90, 7, "BALANCE DUE ON COMPLETION", fill=True)
+    pdf.ln(7)
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(90, 9, f"${deposit:,.2f}", border=1)
+    pdf.cell(90, 9, f"${balance:,.2f}", border=1)
+    pdf.ln(16)
+
+    # ---------- Términos (si el contratista los definió) ----------
+    if terms_note:
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 6, "TERMS", ln=1)
+        pdf.set_draw_color(*AMBER)
+        pdf.set_line_width(0.6)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.set_line_width(0.2)
+        pdf.ln(4)
+        pdf.set_font("Arial", size=9)
+        pdf.set_text_color(*GREY_TEXT)
+        pdf.multi_cell(0, 5, terms_note)
+        pdf.ln(10)
+
+    # ---------- Firma ----------
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_text_color(*DARK)
+    pdf.cell(0, 6, "ACCEPTANCE", ln=1)
+    pdf.set_draw_color(*AMBER)
+    pdf.set_line_width(0.6)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(6)
+    pdf.set_font("Arial", size=9)
+    pdf.set_text_color(*GREY_TEXT)
+    if signature_name and signed_at:
+        pdf.cell(0, 6, f"Signed electronically by {signature_name} on {signed_at.strftime('%b %d, %Y')}", ln=1)
+    else:
+        pdf.cell(0, 6, "Awaiting client signature", ln=1)
+
+    pdf.output(path)
+
+
 def send_email(to_email, subject, text, pdf_base64=None, pdf_filename=None):
     payload = {
         "from": "quotes@qotixo.com",
@@ -148,6 +333,9 @@ def init_db():
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quantity REAL")
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS unit_label TEXT")
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS additional_charges REAL DEFAULT 0")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS unit_price REAL")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_note TEXT")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS services_migrated BOOLEAN DEFAULT FALSE")
 
     # Migración de una sola vez: traslada los precios viejos (driveway/patio/foundation)
@@ -450,19 +638,21 @@ def settings():
 
     if request.method == "POST":
         company_name = request.form["company_name"]
-        c.execute("UPDATE users SET company_name = %s WHERE id = %s", (company_name, current_user.id))
+        terms_note = request.form.get("terms_note", "").strip()
+        c.execute("UPDATE users SET company_name = %s, terms_note = %s WHERE id = %s", (company_name, terms_note, current_user.id))
         conn.commit()
         conn.close()
         return redirect("/")
 
-    c.execute("SELECT company_name, stripe_connect_onboarded FROM users WHERE id = %s", (current_user.id,))
-    company_name, stripe_connect_onboarded = c.fetchone()
+    c.execute("SELECT company_name, stripe_connect_onboarded, terms_note FROM users WHERE id = %s", (current_user.id,))
+    company_name, stripe_connect_onboarded, terms_note = c.fetchone()
     conn.close()
 
     return render_template(
         "settings.html",
         company_name=company_name,
         stripe_connect_onboarded=stripe_connect_onboarded,
+        terms_note=terms_note,
         active_nav="settings"
     )
 
@@ -477,12 +667,23 @@ def home():
     company_name = c.fetchone()[0]
     c.execute("SELECT id, name, unit_label, unit_price FROM services WHERE user_id = %s ORDER BY id", (current_user.id,))
     user_services = c.fetchall()
+    c.execute("""
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(CASE WHEN deposit_paid THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(total), 0)
+        FROM quotes WHERE user_id = %s
+    """, (current_user.id,))
+    quotes_count, paid_count, pipeline_value = c.fetchone()
     conn.close()
     return render_template(
         "home.html",
         company_name=company_name,
         services=user_services,
         has_services=len(user_services) > 0,
+        quotes_count=quotes_count,
+        paid_count=paid_count,
+        pipeline_value=pipeline_value,
         active_nav="home"
     )
 
@@ -500,8 +701,8 @@ def quote():
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
-    company_name = c.fetchone()[0]
+    c.execute("SELECT company_name, terms_note FROM users WHERE id = %s", (current_user.id,))
+    company_name, terms_note = c.fetchone()
     c.execute("SELECT name, unit_label, unit_price FROM services WHERE id = %s AND user_id = %s", (service_id, current_user.id))
     service_row = c.fetchone()
     conn.close()
@@ -520,32 +721,25 @@ def quote():
     c.execute("""
         INSERT INTO quotes
             (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id, token,
-             service_name, quantity, unit_label, additional_charges)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             service_name, quantity, unit_label, additional_charges, unit_price)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id, created_at
     """, (
         client_name, address, service_name, int(round(quantity)), ("yes" if additional_charges > 0 else "no"),
         total, deposit, client_email, current_user.id, quote_token,
-        service_name, quantity, unit_label, additional_charges
+        service_name, quantity, unit_label, additional_charges, unit_price
     ))
+    quote_id, created_at = c.fetchone()
     conn.commit()
     conn.close()
 
     path = f"quote_{client_name}.pdf"
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 20)
-    pdf.cell(0, 15, company_name, ln=True)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"Client: {client_name}", ln=True)
-    pdf.cell(0, 10, f"Address: {address}", ln=True)
-    pdf.cell(0, 10, f"Service: {service_name}", ln=True)
-    pdf.cell(0, 10, f"Quantity: {quantity:g} {unit_label}", ln=True)
-    if additional_charges > 0:
-        pdf.cell(0, 10, f"Additional Charges: ${additional_charges:,.2f}", ln=True)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
-    pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
-    pdf.output(path)
+    build_quote_pdf(
+        path, company_name, current_user.email, quote_id, created_at,
+        client_name, client_email, address,
+        service_name, quantity, unit_label, unit_price, additional_charges,
+        total, deposit, None, None, terms_note
+    )
 
     with open(path, "rb") as f:
         pdf_base64 = base64.b64encode(f.read()).decode("utf-8")
@@ -801,36 +995,28 @@ def generate_pdf(id):
     conn = get_db()
     c = conn.cursor()
     c.execute("""
-        SELECT client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit
+        SELECT client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit,
+               unit_price, created_at, signature_name, signed_at
         FROM quotes WHERE id = %s AND user_id = %s
     """, (id, current_user.id))
     q = c.fetchone()
-    c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
-    company_name = c.fetchone()[0]
+    c.execute("SELECT company_name, terms_note FROM users WHERE id = %s", (current_user.id,))
+    company_name, terms_note = c.fetchone()
     conn.close()
 
     if q is None:
         return "Quote not found", 404
 
-    client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit = q
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 20)
-    pdf.cell(0, 15, company_name, ln=True)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"Client: {client_name}", ln=True)
-    pdf.cell(0, 10, f"Address: {address}", ln=True)
-    pdf.cell(0, 10, f"Service: {service_name}", ln=True)
-    pdf.cell(0, 10, f"Quantity: {quantity:g} {unit_label}", ln=True)
-    if additional_charges:
-        pdf.cell(0, 10, f"Additional Charges: ${additional_charges:,.2f}", ln=True)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"Total: ${total:,.2f}", ln=True)
-    pdf.cell(0, 10, f"Deposit Due: ${deposit:,.2f}", ln=True)
+    (client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit,
+     unit_price, created_at, signature_name, signed_at) = q
 
     path = f"quote_{id}.pdf"
-    pdf.output(path)
+    build_quote_pdf(
+        path, company_name, current_user.email, id, created_at,
+        client_name, "", address,
+        service_name, quantity, unit_label, unit_price or 0, additional_charges or 0,
+        total, deposit, signature_name, signed_at, terms_note
+    )
     return send_file(path, as_attachment=True)
 
 

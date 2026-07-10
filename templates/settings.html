@@ -5,6 +5,9 @@
 <form method="POST" action="/settings">
     <label>Company Name</label>
     <input type="text" name="company_name" value="{{ company_name }}" required>
+    <label>Terms / Warranty Note (optional)</label>
+    <textarea name="terms_note" rows="4" placeholder="e.g. Precision Concrete Inc provides a workmanship guarantee on all labor performed.">{{ terms_note or "" }}</textarea>
+    <p style="font-size:12.5px;">This appears on every quote PDF you send.</p>
     <button type="submit">Save</button>
 </form>
 
