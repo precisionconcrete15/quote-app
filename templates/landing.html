@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qotixo — Quote, sign, get paid.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --amber:#E8A020;
+    --amber-deep:#B97A12;
+    --amber-soft:#FCEFD6;
+    --dark:#1A1714;
+    --ink:#4A453E;
+    --faint:#8A8175;
+    --cream:#F5F2ED;
+    --line:#E6DFD1;
+    --success:#2F7D32;
+    --success-soft:#E4F2E4;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--cream);
+    color:var(--dark);
+    font-family:'Manrope', -apple-system, sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .amount{font-family:'JetBrains Mono', monospace; font-weight:600; font-variant-numeric:tabular-nums;}
+  .wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
+
+  /* ---------- Nav ---------- */
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px; max-width:1040px; margin:0 auto;
+  }
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px;}
+  .logo .badge{
+    width:32px; height:32px; border-radius:9px;
+    background:linear-gradient(155deg, var(--amber), var(--amber-deep));
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:800;
+    box-shadow:0 4px 12px -3px rgba(232,160,32,0.55);
+  }
+  .nav-cta{display:flex; align-items:center; gap:18px;}
+  .nav-cta a{color:var(--ink); text-decoration:none; font-weight:700; font-size:14px;}
+  .nav-cta .btn-solid{
+    background:var(--dark); color:#fff; padding:10px 18px; border-radius:8px;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    max-width:1040px; margin:0 auto; padding:36px 24px 60px;
+    display:grid; grid-template-columns:1fr; gap:40px; align-items:center;
+  }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--amber-deep); margin-bottom:18px;
+  }
+  .eyebrow::before{content:""; width:20px; height:2px; background:var(--amber); display:inline-block;}
+  h1{
+    font-size:clamp(34px,6vw,52px); font-weight:800; line-height:1.04; letter-spacing:-0.02em;
+  }
+  h1 .accent{color:var(--amber-deep);}
+  .hero p.sub{
+    margin-top:18px; font-size:17px; color:var(--ink); max-width:46ch;
+  }
+  .hero-ctas{display:flex; gap:12px; margin-top:28px; flex-wrap:wrap;}
+  .btn{
+    display:inline-block; padding:15px 24px; border-radius:10px; font-weight:800; font-size:15px;
+    text-decoration:none; text-align:center;
+  }
+  .btn-amber{background:var(--amber); color:#fff; box-shadow:0 8px 20px -8px rgba(232,160,32,0.6);}
+  .btn-outline{background:#fff; color:var(--dark); border:1.5px solid var(--line);}
+  .trust-line{margin-top:16px; font-size:13px; color:var(--faint); font-weight:600;}
+
+  /* ---------- Trade chips ---------- */
+  .trades{
+    display:flex; flex-wrap:wrap; gap:8px; margin-top:26px;
+  }
+  .chip{
+    background:#fff; border:1px solid var(--line); border-radius:999px;
+    padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--ink);
+  }
+
+  /* ---------- Phone mockup (hero visual) ---------- */
+  .phone-stage{display:flex; justify-content:center;}
+  .phone{
+    width:270px; background:#fff; border-radius:30px; padding:12px;
+    box-shadow:0 24px 60px -18px rgba(26,23,20,0.32), 0 4px 14px rgba(26,23,20,0.1);
+    border:1px solid #efe9de;
+  }
+  .phone-notch{width:64px; height:5px; background:#e4ddd0; border-radius:4px; margin:0 auto 10px;}
+  .screen{background:var(--cream); border-radius:18px; padding:18px 16px 20px;}
+  .screen h3{font-size:15px; font-weight:800; border-bottom:3px solid var(--amber); padding-bottom:9px; margin-bottom:14px;}
+  .stepper{display:flex; align-items:center; margin-bottom:16px;}
+  .step-dot{
+    width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:800; color:#fff;
+  }
+  .step-lbl{font-size:8px; font-weight:800; margin-top:3px; text-align:center;}
+  .step-line{flex:1; height:2px; margin-bottom:14px;}
+  .mini-card{background:#fff; border-radius:10px; padding:12px; box-shadow:0 4px 12px rgba(26,23,20,0.07);}
+  .mini-row{display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:6px; color:#5c564c;}
+  .mini-row b{color:var(--dark);}
+  .badge-signed{
+    background:var(--success-soft); color:var(--success); font-size:9.5px; font-weight:800;
+    padding:5px 9px; border-radius:6px; display:inline-block; margin-top:8px;
+  }
+  .btn-mock{margin-top:12px; background:var(--amber); color:#fff; text-align:center; font-weight:800; font-size:11px; padding:11px; border-radius:8px;}
+
+  /* ---------- Section shell ---------- */
+  section{padding:64px 0;}
+  .section-head{max-width:520px; margin-bottom:36px;}
+  .section-head .eyebrow{margin-bottom:12px;}
+  .section-head h2{font-size:clamp(26px,4vw,34px); font-weight:800; letter-spacing:-0.01em;}
+  .section-head p{margin-top:12px; color:var(--ink); font-size:15.5px;}
+
+  /* ---------- 3-step process ---------- */
+  .steps{display:grid; grid-template-columns:1fr; gap:20px;}
+  .step-card{
+    background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px;
+    display:flex; gap:16px; align-items:flex-start;
+  }
+  .step-num{
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#fff;
+    background:var(--dark); width:30px; height:30px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .step-card h3{font-size:17px; font-weight:800; margin-bottom:6px;}
+  .step-card p{font-size:14.5px; color:var(--ink);}
+
+  /* ---------- Money trust panel ---------- */
+  .money-panel{
+    background:var(--dark); color:#fff; border-radius:22px; padding:40px 28px; text-align:center;
+  }
+  .money-panel .eyebrow{color:var(--amber);}
+  .money-panel h2{color:#fff; font-size:26px; font-weight:800; margin-bottom:14px;}
+  .money-panel p{color:rgba(255,255,255,0.72); max-width:44ch; margin:0 auto 26px; font-size:15px;}
+  .split-row{display:flex; justify-content:center; gap:16px; flex-wrap:wrap;}
+  .split-node{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14);
+    border-radius:14px; padding:16px 20px; min-width:150px; font-size:12px;
+  }
+  .split-node .lbl{color:rgba(255,255,255,0.55); margin-bottom:6px;}
+  .split-node .amt{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; margin-bottom:4px;}
+  .split-node.a .amt{color:var(--amber);}
+  .split-node.b .amt{color:#7FD98A;}
+
+  /* ---------- Final CTA ---------- */
+  .final-cta{text-align:center; padding:70px 24px 90px;}
+  .final-cta h2{font-size:clamp(28px,5vw,40px); font-weight:800; letter-spacing:-0.01em; margin-bottom:14px;}
+  .final-cta p{color:var(--ink); font-size:15.5px; margin-bottom:28px;}
+  .price-line{font-size:13px; color:var(--faint); margin-top:16px; font-weight:600;}
+
+  footer{border-top:1px solid var(--line); padding:28px 24px; text-align:center; font-size:12.5px; color:var(--faint);}
+
+  @media (min-width:760px){
+    .hero{grid-template-columns:1.05fr 0.95fr;}
+    .steps{grid-template-columns:1fr 1fr 1fr;}
+  }
+
+  /* ---------- Hero video background ---------- */
+  .hero-video-wrap{
+    position:relative;
+    overflow:hidden;
+    padding-top:76px;
+  }
+  .hero-video-bg{
+    position:absolute; inset:0;
+    z-index:0;
+  }
+  .hero-video-bg video{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    opacity:0;
+    transition:opacity 1.2s ease;
+  }
+  .hero-video-bg video.active{ opacity:1; }
+  .hero-video-scrim{
+    position:absolute; inset:0;
+    background:
+      linear-gradient(180deg, rgba(26,23,20,0.72) 0%, rgba(26,23,20,0.55) 45%, var(--cream) 96%);
+    z-index:1;
+  }
+  .hero-video-wrap .hero{ position:relative; z-index:2; padding-top:20px; }
+  .hero-video-wrap .eyebrow{ color:var(--amber); }
+  .hero-video-wrap h1{ color:#fff; }
+  .hero-video-wrap .hero p.sub{ color:rgba(255,255,255,0.82); }
+  .hero-video-wrap .trust-line{ color:rgba(255,255,255,0.65); }
+  .hero-video-wrap .chip{ background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.18); color:#fff; }
+  .hero-video-wrap .nav .logo{ color:#fff; }
+  .hero-video-wrap .nav-cta a:not(.btn-solid){ color:rgba(255,255,255,0.85); }
+  .hero-video-wrap .nav{ position:relative; z-index:2; }
+</style>
+</head>
+<body>
+
+  <div class="hero-video-wrap">
+    <div class="hero-video-bg" id="heroVideoBg">
+      <!--
+        Upload your clips to Cloudinary (or similar) and replace these 5 "src" values with your real URLs.
+        Each video plays for a few seconds, then loops to the next one, showing a different trade.
+      -->
+      <video autoplay muted loop playsinline class="active" data-order="0">
+        <source src="REEMPLAZA_CON_TU_URL_CONCRETO.mp4" type="video/mp4">
+      </video>
+      <video autoplay muted loop playsinline data-order="1">
+        <source src="REEMPLAZA_CON_TU_URL_PINTURA.mp4" type="video/mp4">
+      </video>
+      <video autoplay muted loop playsinline data-order="2">
+        <source src="REEMPLAZA_CON_TU_URL_ELECTRICIDAD.mp4" type="video/mp4">
+      </video>
+      <video autoplay muted loop playsinline data-order="3">
+        <source src="REEMPLAZA_CON_TU_URL_PLOMERIA.mp4" type="video/mp4">
+      </video>
+      <video autoplay muted loop playsinline data-order="4">
+        <source src="REEMPLAZA_CON_TU_URL_LANDSCAPING.mp4" type="video/mp4">
+      </video>
+    </div>
+    <div class="hero-video-scrim"></div>
+
+
+  <nav class="nav">
+    <div class="logo"><div class="badge">Q</div>Qotixo</div>
+    <div class="nav-cta">
+      <a href="/login">Log In</a>
+      <a href="/register" class="btn-solid">Start Free Trial</a>
+    </div>
+  </nav>
+
+  <div class="hero wrap">
+    <div>
+      <div class="eyebrow">FOR CONTRACTORS OF ANY TRADE</div>
+      <h1>Quote. Sign.<br><span class="accent">Get your deposit.</span></h1>
+      <p class="sub">Your client gets the quote, signs it on their phone, and pays the deposit right there — all in under a minute, no calls, no back-and-forth.</p>
+      <div class="hero-ctas">
+        <a href="/register" class="btn btn-amber">Start your 14-day free trial</a>
+        <a href="#how-it-works" class="btn btn-outline">See how it works</a>
+      </div>
+      <div class="trust-line">No credit card required · Money goes straight to your bank</div>
+      <div class="trades">
+        <span class="chip">Concrete</span>
+        <span class="chip">Painting</span>
+        <span class="chip">Plumbing</span>
+        <span class="chip">Electrical</span>
+        <span class="chip">Roofing</span>
+        <span class="chip">HVAC</span>
+        <span class="chip">+ yours</span>
+      </div>
+    </div>
+
+    <div class="phone-stage">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="screen">
+          <h3>ABC Construction</h3>
+          <div class="stepper">
+            <div style="flex:1;text-align:center;">
+              <div class="step-dot" style="background:var(--amber);margin:0 auto;">1</div>
+              <div class="step-lbl" style="color:var(--dark);">QUOTE</div>
+            </div>
+            <div class="step-line" style="background:var(--amber);"></div>
+            <div style="flex:1;text-align:center;">
+              <div class="step-dot" style="background:var(--amber);margin:0 auto;">2</div>
+              <div class="step-lbl" style="color:var(--dark);">SIGNED</div>
+            </div>
+            <div class="step-line" style="background:var(--line);"></div>
+            <div style="flex:1;text-align:center;">
+              <div class="step-dot" style="background:var(--line);color:var(--faint);margin:0 auto;">3</div>
+              <div class="step-lbl" style="color:var(--faint);">PAID</div>
+            </div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-row"><span>Client</span><b>John Perez</b></div>
+            <div class="mini-row"><span>Total</span><b class="amount">$36,000</b></div>
+            <span class="badge-signed">✓ Signed by John Perez</span>
+          </div>
+          <div class="btn-mock">Pay Deposit — $1,000</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><!-- /.hero-video-wrap -->
+
+  <script>
+    // Cycles through the background videos every 4.5 seconds, with a smooth crossfade.
+    const clips = document.querySelectorAll('#heroVideoBg video');
+    let current = 0;
+    if (clips.length > 1) {
+      setInterval(() => {
+        clips[current].classList.remove('active');
+        current = (current + 1) % clips.length;
+        clips[current].classList.add('active');
+      }, 4500);
+    }
+  </script>
+
+  <section class="wrap" id="how-it-works">
+    <div class="section-head">
+      <div class="eyebrow">HOW IT WORKS</div>
+      <h2>From quote to money in your bank.</h2>
+      <p>Three steps, no separate apps, no account or password required for your client.</p>
+    </div>
+    <div class="steps">
+      <div class="step-card">
+        <div class="step-num">01</div>
+        <div>
+          <h3>You generate the quote</h3>
+          <p>Pick the service, enter the quantity, and Qotixo calculates the total and deposit using your own pricing.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">02</div>
+        <div>
+          <h3>Your client signs</h3>
+          <p>They get a link, see the summary with your branding, and accept by typing their name — right from their phone.</p>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">03</div>
+        <div>
+          <h3>You get the deposit</h3>
+          <p>They pay by card right there. The money lands straight in your bank account — not ours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="money-panel">
+      <div class="eyebrow" style="justify-content:center;display:inline-flex;">YOUR MONEY, YOUR ACCOUNT</div>
+      <h2>Your money is split automatically.</h2>
+      <p>Your Qotixo subscription and your client's deposit never mix. Each one goes exactly where it should.</p>
+      <div class="split-row">
+        <div class="split-node a">
+          <div class="lbl">Your monthly subscription</div>
+          <div class="amt">$69.99</div>
+          <div>→ Qotixo's account</div>
+        </div>
+        <div class="split-node b">
+          <div class="lbl">Client's deposit</div>
+          <div class="amt">$1,000.00</div>
+          <div>→ Your bank account</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="final-cta wrap">
+    <h2>Stop chasing deposits over text.</h2>
+    <p>14 days free. No card required. Cancel anytime.</p>
+    <a href="/register" class="btn btn-amber">Create my free account</a>
+    <div class="price-line">After your trial, $69.99/mo · Cancel anytime</div>
+  </div>
+
+  <footer>© Qotixo — Built for contractors, by a contractor.</footer>
+
+</body>
+</html>

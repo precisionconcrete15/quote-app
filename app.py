@@ -256,25 +256,30 @@ def load_user(user_id):
     return None
 
 
+def has_active_subscription(user_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT subscription_status, trial_end FROM users WHERE id = %s", (user_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row is None:
+        return False
+
+    status, trial_end = row
+    now = datetime.utcnow()
+
+    if status == "active":
+        return True
+    if status == "trialing" and trial_end and trial_end > now:
+        return True
+    return False
+
+
 def subscription_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT subscription_status, trial_end FROM users WHERE id = %s", (current_user.id,))
-        row = c.fetchone()
-        conn.close()
-
-        if row is None:
-            return redirect("/billing")
-
-        status, trial_end = row
-        now = datetime.utcnow()
-
-        if status == "active":
-            return f(*args, **kwargs)
-
-        if status == "trialing" and trial_end and trial_end > now:
+        if has_active_subscription(current_user.id):
             return f(*args, **kwargs)
 
         return redirect("/billing")
@@ -658,9 +663,13 @@ def settings():
 
 
 @app.route("/")
-@login_required
-@subscription_required
 def home():
+    if not current_user.is_authenticated:
+        return render_template("landing.html")
+
+    if not has_active_subscription(current_user.id):
+        return redirect("/billing")
+
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT company_name FROM users WHERE id = %s", (current_user.id,))
