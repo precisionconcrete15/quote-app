@@ -4,17 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Qotixo — Quote, sign, get paid.</title>
-
-<!-- PWA -->
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/static/manifest.json">
 <meta name="theme-color" content="#E8A020">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Qotixo">
-<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16.png">
-
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -372,12 +365,10 @@
   <footer>© Qotixo — Built for contractors, by a contractor.</footer>
 
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('Qotixo SW registered:', reg.scope))
-          .catch(err => console.error('SW registration failed:', err));
-      });
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("/static/sw.js").catch(() => {});
+        });
     }
   </script>
 
