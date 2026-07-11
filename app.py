@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, send_file, render_template
+from flask import Flask, request, redirect, send_file, render_template, send_from_directory
 import psycopg2
 from fpdf import FPDF
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -366,6 +366,16 @@ def init_db():
 
 
 init_db()
+
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
+
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
 
 
 @app.route("/register", methods=["GET", "POST"])
