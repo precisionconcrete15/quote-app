@@ -181,10 +181,7 @@
     position:absolute; inset:0;
     width:100%; height:100%;
     object-fit:cover;
-    opacity:0;
-    transition:opacity 1.2s ease;
   }
-  .hero-video-bg video.active{ opacity:1; }
   .hero-video-scrim{
     position:absolute; inset:0;
     background:
@@ -206,24 +203,8 @@
 
   <div class="hero-video-wrap">
     <div class="hero-video-bg" id="heroVideoBg">
-      <!--
-        Upload your clips to Cloudinary (or similar) and replace these 5 "src" values with your real URLs.
-        Each video plays for a few seconds, then loops to the next one, showing a different trade.
-      -->
-      <video autoplay muted loop playsinline class="active" data-order="0">
-        <source src="REEMPLAZA_CON_TU_URL_CONCRETO.mp4" type="video/mp4">
-      </video>
-      <video autoplay muted loop playsinline data-order="1">
-        <source src="REEMPLAZA_CON_TU_URL_PINTURA.mp4" type="video/mp4">
-      </video>
-      <video autoplay muted loop playsinline data-order="2">
-        <source src="REEMPLAZA_CON_TU_URL_ELECTRICIDAD.mp4" type="video/mp4">
-      </video>
-      <video autoplay muted loop playsinline data-order="3">
-        <source src="REEMPLAZA_CON_TU_URL_PLOMERIA.mp4" type="video/mp4">
-      </video>
-      <video autoplay muted loop playsinline data-order="4">
-        <source src="REEMPLAZA_CON_TU_URL_LANDSCAPING.mp4" type="video/mp4">
+      <video autoplay muted loop playsinline>
+        <source src="https://res.cloudinary.com/qpe4osac/video/upload/v1783811574/0711_3_wlpfcp.mp4" type="video/mp4">
       </video>
     </div>
     <div class="hero-video-scrim"></div>
@@ -290,19 +271,6 @@
     </div>
   </div>
   </div><!-- /.hero-video-wrap -->
-
-  <script>
-    // Cycles through the background videos every 4.5 seconds, with a smooth crossfade.
-    const clips = document.querySelectorAll('#heroVideoBg video');
-    let current = 0;
-    if (clips.length > 1) {
-      setInterval(() => {
-        clips[current].classList.remove('active');
-        current = (current + 1) % clips.length;
-        clips[current].classList.add('active');
-      }, 4500);
-    }
-  </script>
 
   <section class="wrap" id="how-it-works">
     <div class="section-head">
