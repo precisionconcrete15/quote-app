@@ -6,12 +6,22 @@
 <div class="alert">{{ error|safe }}</div>
 {% endif %}
 <form method="POST" action="/register">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Company Name</label>
     <input type="text" name="company_name" required>
     <label>Email</label>
     <input type="text" name="email" required>
     <label>Password</label>
     <input type="password" name="password" required>
+
+    <div style="display:flex; align-items:flex-start; gap:8px; margin:16px 0; font-size:13px; color:var(--ink);">
+        <input type="checkbox" id="agree_terms" name="agree_terms" required style="margin-top:3px;">
+        <label for="agree_terms" style="font-weight:500;">
+            I agree to Qotixo's <a href="/terms" target="_blank" style="color:var(--amber-deep); font-weight:700;">Terms of Service</a>
+            and <a href="/privacy" target="_blank" style="color:var(--amber-deep); font-weight:700;">Privacy Policy</a>.
+        </label>
+    </div>
+
     <button type="submit">Register</button>
 </form>
 <div class="link-row">

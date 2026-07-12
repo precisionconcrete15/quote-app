@@ -36,6 +36,7 @@
     <h2>Accept This Quote</h2>
     <p style="font-size:14px;">Type your full name below to accept this quote electronically.</p>
     <form method="POST" action="/view/{{ token }}/sign">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Full Name</label>
         <input type="text" name="signature_name" required placeholder="Your full legal name">
         <button type="submit">Accept &amp; Sign</button>

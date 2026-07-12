@@ -7,3 +7,5 @@ Werkzeug
 psycopg2-binary
 requests
 stripe
+Flask-WTF
+Flask-Limiter

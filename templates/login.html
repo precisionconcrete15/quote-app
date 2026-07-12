@@ -6,6 +6,7 @@
 <div class="alert">{{ error }}</div>
 {% endif %}
 <form method="POST" action="/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Email</label>
     <input type="text" name="email" required>
     <label>Password</label>

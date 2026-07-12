@@ -3,99 +3,38 @@
 {% block content %}
 <h1>{{ company_name }}</h1>
 
-<!-- Tira de estadísticas rápidas -->
-<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:20px;">
-    <div class="card" style="margin-top:0; padding:14px; text-align:center;">
-        <p class="amount" style="font-size:20px; margin:0; color:var(--dark);">{{ quotes_count }}</p>
-        <p style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--faint); margin:2px 0 0;">Quotes</p>
-    </div>
-    <div class="card" style="margin-top:0; padding:14px; text-align:center;">
-        <p class="amount" style="font-size:20px; margin:0; color:var(--success);">{{ paid_count }}</p>
-        <p style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--faint); margin:2px 0 0;">Paid</p>
-    </div>
-    <div class="card" style="margin-top:0; padding:14px; text-align:center;">
-        <p class="amount" style="font-size:16px; margin:0; color:var(--amber-deep);">${{ "{:,.0f}".format(pipeline_value) }}</p>
-        <p style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--faint); margin:2px 0 0;">Pipeline</p>
-    </div>
-</div>
-
 {% if not has_services %}
-<div class="card">
-    <div class="alert">You haven't added any services yet.</div>
-    <p style="font-size:14px;">Add at least one service (with its price) before you can generate a quote.</p>
-    <a href="/services" class="btn">Add a Service</a>
+<div class="alert">
+    You haven't added any services yet. <a href="/services">Add your services and pricing</a> before generating a quote.
 </div>
 {% else %}
-<div class="card">
-    <form method="POST" action="/quote" id="quoteForm">
-        <label>Client Name</label>
-        <input type="text" name="client_name" required>
-        <label>Client Email</label>
-        <input type="email" name="client_email" required>
-        <label>Address</label>
-        <input type="text" name="address" required>
-        <label>Service</label>
-        <select name="service_id" id="serviceSelect" required>
-            {% for s in services %}
-            <option value="{{ s[0] }}" data-price="{{ s[3] }}" data-unit="{{ s[2] }}">{{ s[1] }} (${{ "{:,.2f}".format(s[3]) }} / {{ s[2] }})</option>
-            {% endfor %}
-        </select>
-        <label>Quantity</label>
-        <input type="number" step="0.01" name="quantity" id="quantityInput" placeholder="e.g. square feet, hours, units" required>
-        <label>Additional Charges ($, optional)</label>
-        <input type="number" step="0.01" name="additional_charges" id="chargesInput" placeholder="0.00" value="0">
-
-        <!-- Total en vivo -->
-        <div id="livePreview" style="display:none; margin-top:18px; padding:16px; border-radius:12px; background:var(--amber-soft); border:1px solid #f0dcae;">
-            <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--ink); margin-bottom:4px;">
-                <span>Estimated Total</span>
-                <span class="amount" id="previewTotal" style="font-weight:700; color:var(--amber-deep); font-size:16px;">$0.00</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--faint);">
-                <span>Deposit due (10%, max $1,000)</span>
-                <span class="amount" id="previewDeposit">$0.00</span>
-            </div>
-        </div>
-
-        <button type="submit">Generate Quote</button>
-    </form>
-</div>
+<form method="POST" action="/quote">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Client Name</label>
+    <input type="text" name="client_name" required>
+    <label>Client Email</label>
+    <input type="email" name="client_email" required>
+    <label>Address</label>
+    <input type="text" name="address" required>
+    <label>Service</label>
+    <select name="service_id" required>
+        {% for s in services %}
+        <option value="{{ s[0] }}">{{ s[1] }} — ${{ "{:,.2f}".format(s[3]) }} / {{ s[2] }}</option>
+        {% endfor %}
+    </select>
+    <label>Quantity</label>
+    <input type="number" step="0.01" name="quantity" required placeholder="e.g. 450">
+    <label>Additional Charges ($, optional)</label>
+    <input type="number" step="0.01" name="additional_charges" placeholder="e.g. demo, hauling, permits">
+    <button type="submit">Generate Quote</button>
+</form>
 {% endif %}
 
 <div class="link-row">
+    <a href="/quotes">View All Quotes</a>
+    <a href="/services">Services</a>
+    <a href="/settings">Settings</a>
     <a href="/billing">Billing</a>
+    <a href="/logout" class="link-danger">Logout</a>
 </div>
-
-<script>
-    // Calcula el total y el depósito en tiempo real, conforme el contratista llena el formulario.
-    const serviceSelect = document.getElementById('serviceSelect');
-    const quantityInput = document.getElementById('quantityInput');
-    const chargesInput = document.getElementById('chargesInput');
-    const preview = document.getElementById('livePreview');
-    const previewTotal = document.getElementById('previewTotal');
-    const previewDeposit = document.getElementById('previewDeposit');
-
-    function updatePreview() {
-        const selected = serviceSelect.options[serviceSelect.selectedIndex];
-        const unitPrice = parseFloat(selected.dataset.price) || 0;
-        const quantity = parseFloat(quantityInput.value) || 0;
-        const charges = parseFloat(chargesInput.value) || 0;
-
-        if (quantity > 0) {
-            const total = (unitPrice * quantity) + charges;
-            const deposit = Math.min(1000, total * 0.10);
-            previewTotal.textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            previewDeposit.textContent = '$' + deposit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            preview.style.display = 'block';
-        } else {
-            preview.style.display = 'none';
-        }
-    }
-
-    if (serviceSelect) {
-        serviceSelect.addEventListener('change', updatePreview);
-        quantityInput.addEventListener('input', updatePreview);
-        chargesInput.addEventListener('input', updatePreview);
-    }
-</script>
 {% endblock %}

@@ -2,6 +2,9 @@ from flask import Flask, request, redirect, send_file, render_template, send_fro
 import psycopg2
 from fpdf import FPDF
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import datetime, timedelta
@@ -16,6 +19,15 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-only-change-in-render')
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+csrf = CSRFProtect(app)
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 STRIPE_PRICE_ID = "price_1Tqmr2QKfprCRWsdLfLubmdF"
@@ -378,9 +390,26 @@ def manifest():
     return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
 
 
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
+
+
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("10 per hour")
 def register():
     if request.method == "POST":
+        if not request.form.get("agree_terms"):
+            return render_template(
+                "register.html",
+                error="You must agree to the Terms of Service and Privacy Policy to create an account."
+            )
+
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
         company_name = request.form["company_name"]
@@ -425,6 +454,7 @@ def register():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def login():
     if request.method == "POST":
         email = request.form["email"]
@@ -487,6 +517,7 @@ def subscribe():
 
 
 @app.route("/webhook", methods=["POST"])
+@csrf.exempt
 def webhook():
     payload = request.data
     sig_header = request.headers.get("Stripe-Signature")
