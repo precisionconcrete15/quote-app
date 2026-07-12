@@ -48,7 +48,7 @@ def stripe_field(obj, key):
 def build_quote_pdf(path, company_name, owner_email, quote_id, created_at,
                      client_name, client_email, address,
                      service_name, quantity, unit_label, unit_price, additional_charges,
-                     total, deposit, signature_name, signed_at, terms_note):
+                     total, deposit, signature_name, signed_at, terms_note, scope_of_work=None):
     DARK = (26, 23, 20)
     AMBER = (232, 160, 32)
     LIGHT = (245, 242, 237)
@@ -174,6 +174,21 @@ def build_quote_pdf(path, company_name, owner_email, quote_id, created_at,
     pdf.cell(155, 9, "TOTAL", fill=True, align="R")
     pdf.cell(25, 9, f"${total:,.2f}", fill=True, align="R")
     pdf.ln(16)
+
+    # ---------- Alcance del trabajo (lo que cubre esta cotización) ----------
+    if scope_of_work:
+        pdf.set_font("Arial", "B", 10)
+        pdf.set_text_color(*DARK)
+        pdf.cell(0, 6, "SCOPE OF WORK", ln=1)
+        pdf.set_draw_color(*AMBER)
+        pdf.set_line_width(0.6)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.set_line_width(0.2)
+        pdf.ln(4)
+        pdf.set_font("Arial", size=9)
+        pdf.set_text_color(*GREY_TEXT)
+        pdf.multi_cell(0, 5, scope_of_work)
+        pdf.ln(10)
 
     # ---------- Calendario de pago ----------
     pdf.set_font("Arial", "B", 10)
@@ -354,6 +369,7 @@ def init_db():
     c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_note TEXT")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS services_migrated BOOLEAN DEFAULT FALSE")
+    c.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS scope_of_work TEXT")
 
     # Migración de una sola vez: traslada los precios viejos (driveway/patio/foundation)
     # de cuentas ya existentes a la nueva tabla de servicios, para que no pierdan sus precios.
@@ -748,6 +764,7 @@ def quote():
     service_id = int(request.form["service_id"])
     quantity = float(request.form["quantity"])
     additional_charges = float(request.form.get("additional_charges") or 0)
+    scope_of_work = request.form.get("scope_of_work", "").strip() or None
 
     conn = get_db()
     c = conn.cursor()
@@ -771,13 +788,13 @@ def quote():
     c.execute("""
         INSERT INTO quotes
             (client_name, address, job_type, sqft, demo, total, deposit, client_email, user_id, token,
-             service_name, quantity, unit_label, additional_charges, unit_price)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             service_name, quantity, unit_label, additional_charges, unit_price, scope_of_work)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id, created_at
     """, (
         client_name, address, service_name, int(round(quantity)), ("yes" if additional_charges > 0 else "no"),
         total, deposit, client_email, current_user.id, quote_token,
-        service_name, quantity, unit_label, additional_charges, unit_price
+        service_name, quantity, unit_label, additional_charges, unit_price, scope_of_work
     ))
     quote_id, created_at = c.fetchone()
     conn.commit()
@@ -788,7 +805,7 @@ def quote():
         path, company_name, current_user.email, quote_id, created_at,
         client_name, client_email, address,
         service_name, quantity, unit_label, unit_price, additional_charges,
-        total, deposit, None, None, terms_note
+        total, deposit, None, None, terms_note, scope_of_work
     )
 
     with open(path, "rb") as f:
@@ -1046,7 +1063,7 @@ def generate_pdf(id):
     c = conn.cursor()
     c.execute("""
         SELECT client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit,
-               unit_price, created_at, signature_name, signed_at
+               unit_price, created_at, signature_name, signed_at, scope_of_work
         FROM quotes WHERE id = %s AND user_id = %s
     """, (id, current_user.id))
     q = c.fetchone()
@@ -1058,14 +1075,14 @@ def generate_pdf(id):
         return "Quote not found", 404
 
     (client_name, address, service_name, quantity, unit_label, additional_charges, total, deposit,
-     unit_price, created_at, signature_name, signed_at) = q
+     unit_price, created_at, signature_name, signed_at, scope_of_work) = q
 
     path = f"quote_{id}.pdf"
     build_quote_pdf(
         path, company_name, current_user.email, id, created_at,
         client_name, "", address,
         service_name, quantity, unit_label, unit_price or 0, additional_charges or 0,
-        total, deposit, signature_name, signed_at, terms_note
+        total, deposit, signature_name, signed_at, terms_note, scope_of_work
     )
     return send_file(path, as_attachment=True)
 
