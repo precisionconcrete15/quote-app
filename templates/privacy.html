@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Qotixo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --amber:#E8A020;
+    --amber-deep:#B97A12;
+    --dark:#1A1714;
+    --ink:#4A453E;
+    --faint:#8A8175;
+    --cream:#F5F2ED;
+    --line:#E6DFD1;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--dark);
+    font-family:'Manrope', -apple-system, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:0 24px;}
+
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px; max-width:1040px; margin:0 auto;
+  }
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; text-decoration:none; color:var(--dark);}
+  .logo .badge{
+    width:32px; height:32px; border-radius:9px;
+    background:linear-gradient(155deg, var(--amber), var(--amber-deep));
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:800;
+  }
+  .nav a.back{color:var(--ink); text-decoration:none; font-weight:700; font-size:14px;}
+
+  .doc-head{padding:48px 0 32px; border-bottom:1px solid var(--line); margin-bottom:40px;}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--amber-deep); margin-bottom:14px;
+  }
+  .eyebrow::before{content:""; width:20px; height:2px; background:var(--amber); display:inline-block;}
+  h1{font-size:clamp(28px,5vw,38px); font-weight:800; letter-spacing:-0.01em;}
+  .updated{margin-top:10px; font-size:13.5px; color:var(--faint); font-weight:600;}
+
+  .doc-body{padding-bottom:80px;}
+  .doc-body h2{
+    font-size:19px; font-weight:800; margin-top:36px; margin-bottom:12px;
+    padding-top:8px;
+  }
+  .doc-body h2:first-child{margin-top:0;}
+  .doc-body p{font-size:15px; color:var(--ink); margin-bottom:14px;}
+  .doc-body ul{margin:0 0 14px 20px; color:var(--ink); font-size:15px;}
+  .doc-body li{margin-bottom:6px;}
+  .doc-body strong{color:var(--dark);}
+  .doc-body a{color:var(--amber-deep); font-weight:700; text-decoration:none;}
+  .doc-body a:hover{text-decoration:underline;}
+
+  table{width:100%; border-collapse:collapse; margin:16px 0 20px; font-size:14px;}
+  th{
+    text-align:left; padding:10px 12px; background:#fff; border:1px solid var(--line);
+    font-weight:800; color:var(--dark);
+  }
+  td{padding:10px 12px; border:1px solid var(--line); color:var(--ink); background:#fff;}
+
+  footer{border-top:1px solid var(--line); padding:28px 24px; text-align:center; font-size:12.5px; color:var(--faint);}
+</style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="logo"><div class="badge">Q</div>Qotixo</a>
+    <a href="/" class="back">← Back to home</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="doc-head">
+      <div class="eyebrow">LEGAL</div>
+      <h1>Privacy Policy</h1>
+      <div class="updated">Last updated: July 11, 2026</div>
+    </div>
+
+    <div class="doc-body">
+      <p>This Privacy Policy explains what information Qotixo collects, how we use it, and the choices you have. It applies to contractors who use Qotixo ("you," "your account") and to their clients who receive and sign quotes through the platform.</p>
+
+      <h2>1. Information we collect</h2>
+      <table>
+        <tr><th>From contractors (account holders)</th><th>Examples</th></tr>
+        <tr><td>Account info</td><td>Name, email, business name, phone number</td></tr>
+        <tr><td>Business info</td><td>Trade/services, pricing, license number if provided</td></tr>
+        <tr><td>Payment info</td><td>Billing details for your subscription, processed by Stripe</td></tr>
+        <tr><td>Bank details</td><td>Connected via Stripe Connect to receive client deposits</td></tr>
+      </table>
+      <table>
+        <tr><th>From your clients</th><th>Examples</th></tr>
+        <tr><td>Contact info</td><td>Name, email, phone, provided by you or entered by them</td></tr>
+        <tr><td>Signature data</td><td>Typed name and timestamp used to accept a quote</td></tr>
+        <tr><td>Payment info</td><td>Card details for deposits, processed directly by Stripe — Qotixo never stores full card numbers</td></tr>
+      </table>
+
+      <h2>2. How we use this information</h2>
+      <ul>
+        <li>To operate core features: generating quotes, collecting signatures, processing deposits, and sending notifications</li>
+        <li>To bill your Qotixo subscription</li>
+        <li>To route client payments to your connected bank account via Stripe</li>
+        <li>To provide customer support and respond to your requests</li>
+        <li>To improve the platform's reliability and features</li>
+        <li>To send you important account or service notices</li>
+      </ul>
+
+      <h2>3. What we don't do</h2>
+      <p>We don't sell your data or your clients' data to third parties. We don't share your client list or pricing with other contractors on the platform. We don't display ads in Qotixo.</p>
+
+      <h2>4. Third parties we work with</h2>
+      <p>Qotixo relies on a small number of service providers to operate:</p>
+      <ul>
+        <li><strong>Stripe</strong> — payment processing, subscription billing, and Stripe Connect for routing client deposits to your bank account</li>
+        <li><strong>Render</strong> — application hosting and database infrastructure</li>
+        <li><strong>Resend</strong> — transactional email delivery (quote notifications, receipts)</li>
+      </ul>
+      <p>Each of these providers processes data under their own privacy policy and only for the purpose of providing their service to Qotixo.</p>
+
+      <h2>5. Data retention</h2>
+      <p>We retain your account data and quote history for as long as your account is active, and for a reasonable period after cancellation in case you reactivate or need historical records for tax or legal purposes. You can request deletion of your data by contacting us, subject to any records we're legally required to keep.</p>
+
+      <h2>6. Your choices</h2>
+      <ul>
+        <li>You can access and update your account information anytime from your Qotixo settings.</li>
+        <li>You can request a copy of your data or ask us to delete it, subject to legal retention requirements.</li>
+        <li>Your clients can contact you directly (as the contractor) to request corrections to their information, since you control the client records in your account.</li>
+      </ul>
+
+      <h2>7. Security</h2>
+      <p>We use industry-standard measures to protect your data, including encrypted connections (HTTPS), secure password storage, and access controls. No system is 100% secure, but we take reasonable steps to protect your information from unauthorized access.</p>
+
+      <h2>8. Children's privacy</h2>
+      <p>Qotixo is intended for business use by adults. We don't knowingly collect information from anyone under 18.</p>
+
+      <h2>9. Changes to this policy</h2>
+      <p>We may update this Privacy Policy from time to time. If we make material changes, we'll notify you by email or through the platform.</p>
+
+      <h2>10. Contact</h2>
+      <p>Questions about this Privacy Policy or your data? Reach out at <a href="mailto:support@qotixo.com">support@qotixo.com</a>.</p>
+    </div>
+  </div>
+
+  <footer>© Qotixo — Built for contractors, by a contractor.</footer>
+
+</body>
+</html>
