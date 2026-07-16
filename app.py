@@ -928,7 +928,8 @@ def view_quote(token):
         signature_name=signature_name,
         signed_at=signed_at,
         deposit_paid=deposit_paid,
-        contractor_can_collect=contractor_can_collect
+        contractor_can_collect=contractor_can_collect,
+        account_inactive=request.args.get("inactive") == "1"
     )
 
 
@@ -972,7 +973,7 @@ def pay_deposit(token):
     c = conn.cursor()
     c.execute("""
         SELECT q.client_name, q.client_email, q.deposit, q.signed_at, q.deposit_paid,
-               u.stripe_connect_id, u.stripe_connect_onboarded
+               u.stripe_connect_id, u.stripe_connect_onboarded, u.id
         FROM quotes q JOIN users u ON q.user_id = u.id
         WHERE q.token = %s
     """, (token,))
@@ -982,7 +983,7 @@ def pay_deposit(token):
     if row is None:
         return "Quote not found", 404
 
-    client_name, client_email, deposit, signed_at, deposit_paid, connect_id, onboarded = row
+    client_name, client_email, deposit, signed_at, deposit_paid, connect_id, onboarded, contractor_id = row
 
     if not signed_at:
         return redirect(f"/view/{token}")
@@ -992,6 +993,9 @@ def pay_deposit(token):
 
     if not onboarded or not connect_id:
         return redirect(f"/view/{token}")
+
+    if not has_active_subscription(contractor_id):
+        return redirect(f"/view/{token}?inactive=1")
 
     checkout_session = stripe.checkout.Session.create(
         mode="payment",

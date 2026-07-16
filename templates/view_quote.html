@@ -46,7 +46,9 @@
 <div class="card">
     <div class="alert alert-success">Signed by {{ signature_name }} on {{ signed_at }}</div>
     {% if not deposit_paid %}
-        {% if contractor_can_collect %}
+        {% if account_inactive %}
+    <div class="alert">This contractor's account is currently inactive. Please contact {{ company_name }} directly to arrange your deposit payment.</div>
+        {% elif contractor_can_collect %}
     <p style="font-size:14px;">Pay your deposit now to get your project scheduled.</p>
     <a href="/view/{{ token }}/pay" class="btn">Pay Deposit — ${{ "{:,.2f}".format(deposit) }}</a>
         {% else %}
