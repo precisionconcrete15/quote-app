@@ -30,7 +30,7 @@ limiter = Limiter(
 )
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
-STRIPE_PRICE_ID = "price_1Tqmr2QKfprCRWsdLfLubmdF"
+STRIPE_PRICE_ID = "price_1TteUn47eAk5xyDdAIX4DERK"
 APP_URL = "https://quote-app-flfp.onrender.com"
 
 
