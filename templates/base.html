@@ -33,10 +33,7 @@
         }
         * { box-sizing: border-box; }
 
-        /* ---------- Photographic background, darkened + blurred so content stays fully legible ---------- */
-        html {
-            background-color: var(--dark);
-        }
+        html { background-color: var(--cream); }
         body {
             font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             color: var(--dark);
@@ -46,7 +43,33 @@
             min-height: 100vh;
             position: relative;
         }
-        .bg-photo {
+
+        /* ---------- Layer 1: subtle grain + amber glow, used on every page as the base ---------- */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -3;
+            background-color: var(--cream);
+            background-image:
+                radial-gradient(ellipse 900px 500px at 50% -8%, rgba(232,160,32,0.10), transparent 60%),
+                radial-gradient(ellipse 600px 400px at 90% 10%, rgba(185,122,18,0.06), transparent 65%);
+        }
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -3;
+            pointer-events: none;
+            opacity: 0.45;
+            mix-blend-mode: multiply;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.08  0 0 0 0.026 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+
+        /* ---------- Layer 2: atmospheric photo, only on auth/public pages (body.photo-bg) ---------- */
+        .bg-photo, .bg-scrim { display: none; }
+        body.photo-bg .bg-photo {
+            display: block;
             position: fixed;
             inset: 0;
             z-index: -2;
@@ -54,17 +77,18 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            filter: saturate(1);
             transform: scale(1.02);
         }
-        .bg-scrim {
+        body.photo-bg .bg-scrim {
+            display: block;
             position: fixed;
             inset: 0;
             z-index: -1;
             background:
-                linear-gradient(180deg, rgba(26,23,20,0.22) 0%, rgba(26,23,20,0.34) 30%, var(--cream) 64%),
-                radial-gradient(ellipse 700px 400px at 50% 0%, rgba(232,160,32,0.22), transparent 60%);
+                linear-gradient(180deg, rgba(20,17,14,0.55) 0%, rgba(20,17,14,0.30) 45%, rgba(20,17,14,0.62) 100%),
+                radial-gradient(ellipse 800px 500px at 50% 0%, rgba(232,160,32,0.14), transparent 65%);
         }
+
         .appbar, .container, .bottomnav { position: relative; z-index: 1; }
 
         /* ---------- App bar ---------- */
@@ -76,11 +100,7 @@
             margin: 0 auto;
             padding: 18px 20px 0;
         }
-        .brandmark {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .brandmark { display: flex; align-items: center; gap: 10px; }
         .brandmark .badge {
             width: 30px; height: 30px;
             border-radius: 9px;
@@ -98,8 +118,7 @@
             font-size: 12px;
             font-weight: 800;
             letter-spacing: 0.06em;
-            color: rgba(255,255,255,0.9);
-            text-shadow: 0 1px 4px rgba(0,0,0,0.55), 0 1px 12px rgba(0,0,0,0.35);
+            color: var(--faint);
             text-transform: uppercase;
         }
         .icon-btn {
@@ -108,11 +127,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: rgba(255,255,255,0.85);
+            color: var(--ink);
             text-decoration: none;
             transition: background-color .15s ease;
         }
-        .icon-btn:hover { background: rgba(255,255,255,0.12); }
+        .icon-btn:hover { background: white; }
         .icon-btn svg { width: 18px; height: 18px; }
 
         .container {
@@ -125,11 +144,6 @@
             margin-top: 0;
             font-weight: 800;
             letter-spacing: -0.01em;
-        }
-        /* First heading sits over the photo area near the top, so it stays light there with a soft shadow for contrast */
-        .container > h1:first-child {
-            color: #fff;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
         }
         h1 {
             font-size: 25px;
@@ -230,7 +244,6 @@
         .alert-success { background: var(--success-soft); color: var(--success); }
         .amount { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-        /* ---------- Status pills ---------- */
         .pill {
             display: inline-flex;
             align-items: center;
@@ -281,12 +294,67 @@
         .navitem.active { color: var(--amber-deep); }
         .navitem.active svg { stroke: var(--amber-deep); }
 
+        /* ---------- Auth shell: centered glass card over the atmospheric photo (login/register/public quote view) ---------- */
+        body.photo-bg .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 20px;
+        }
+        .auth-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        .auth-brand .badge {
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(155deg, var(--amber), var(--amber-deep));
+            color: white;
+            font-weight: 800;
+            font-size: 17px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px -3px rgba(232,160,32,0.65), inset 0 1px 0 rgba(255,255,255,0.3);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .auth-brand span {
+            color: #fff;
+            font-weight: 800;
+            font-size: 17px;
+            letter-spacing: -0.01em;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        }
+        body.photo-bg .container > div.auth-card {
+            width: 100%;
+            max-width: 380px;
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(20px) saturate(1.6);
+            -webkit-backdrop-filter: blur(20px) saturate(1.6);
+            border: 1px solid rgba(255,255,255,0.6);
+            border-radius: 22px;
+            padding: 30px 26px 26px;
+            box-shadow: 0 20px 50px -14px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.7);
+            animation: rise .4s ease both;
+        }
+        body.photo-bg .container h1 {
+            font-size: 22px;
+            padding-bottom: 12px;
+            margin-bottom: 18px;
+        }
+        body.photo-bg .container label { margin: 14px 0 6px; }
+
         @media (prefers-reduced-motion: reduce) {
-            .card { animation: none; }
+            .card, body.photo-bg .container > div.auth-card { animation: none; }
         }
     </style>
 </head>
-<body>
+<body class="{% if not active_nav %}photo-bg{% endif %}">
     <div class="bg-photo"></div>
     <div class="bg-scrim"></div>
 
@@ -303,7 +371,15 @@
     {% endif %}
 
     <div class="container">
-        {% block content %}{% endblock %}
+        {% if not active_nav %}
+        <div class="auth-brand">
+            <div class="badge">Q</div>
+            <span>Qotixo</span>
+        </div>
+        {% endif %}
+        <div class="{% if not active_nav %}auth-card{% endif %}">
+            {% block content %}{% endblock %}
+        </div>
     </div>
 
     {% if active_nav %}
